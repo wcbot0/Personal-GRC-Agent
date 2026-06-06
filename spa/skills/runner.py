@@ -61,7 +61,7 @@ def run_skill(
         task_class="skill",
         risk_class="A1",
         tools_called=[f"skill:{skill_name}"],
-        preview=serialized[:2000],
+        preview=f"skill={skill_name} chars={len(serialized)}",
     )
 
     final_output, verifications = run_verifiers(

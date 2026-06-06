@@ -11,15 +11,17 @@ from typing import Any
 import jsonschema
 
 from spa.memory.redaction import redact_obj, redact_text
-from spa.paths import MEMORY_OBJECT_SCHEMA, get_data_dir
+from spa.paths import MEMORY_OBJECT_SCHEMA, ensure_private_dir, ensure_private_file, get_data_dir
 
 
 class EpisodicMemory:
     def __init__(self, db_path: Path | None = None) -> None:
         self.db_path = db_path or (get_data_dir() / "episodic.db")
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self.db_path.parent)
         self._schema = json.loads(MEMORY_OBJECT_SCHEMA.read_text())
         self._init_db()
+        ensure_private_file(self.db_path)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)

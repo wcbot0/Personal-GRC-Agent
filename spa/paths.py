@@ -62,3 +62,11 @@ def rel_to_repo(path: Path) -> str:
         return str(path.relative_to(ROOT))
     except ValueError:
         return str(path)
+
+
+def ensure_private_dir(path: Path) -> None:
+    path.chmod(0o700)
+
+
+def ensure_private_file(path: Path) -> None:
+    path.chmod(0o600)
