@@ -11,11 +11,20 @@ import jsonschema
 
 from spa.audit.logger import AuditLogger
 from spa.memory.redaction import redact_obj
-from spa.paths import APPROVAL_QUEUE_DIR, CPO_SCHEMA
+from spa.paths import APPROVAL_QUEUE_DIR, CPO_SCHEMA, get_proposals_dir
 
 
 class ApprovalQueueError(Exception):
     pass
+
+
+RISK_ORDER = ["A3", "A4", "A5"]
+
+
+def _allowed_risk_classes(max_risk: str) -> set[str]:
+    if max_risk not in RISK_ORDER:
+        raise ApprovalQueueError(f"max-risk must be one of {', '.join(RISK_ORDER[:-1])}")
+    return set(RISK_ORDER[: RISK_ORDER.index(max_risk) + 1])
 
 
 class ApprovalQueue:
@@ -89,11 +98,65 @@ class ApprovalQueue:
                 proposals.append(cpo)
         return proposals
 
+    @staticmethod
+    def summary_row(cpo: dict[str, Any]) -> dict[str, str]:
+        return {
+            "id": cpo["id"],
+            "type": cpo["action_type"],
+            "risk": cpo["action_class"],
+            "summary": cpo["title"],
+        }
+
     def get(self, cpo_id: str) -> dict[str, Any]:
         path = self._path_for(cpo_id)
         if not path.exists():
             raise ApprovalQueueError(f"CPO not found: {cpo_id}")
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def build_preview(self, cpo: dict[str, Any]) -> str:
+        change = cpo.get("proposed_change") or {}
+        lines = [
+            f"Action: {cpo['action_type']} ({cpo['action_class']})",
+            f"Summary: {cpo['title']}",
+            "",
+            cpo.get("description", ""),
+            "",
+            "Proposed change:",
+            json.dumps(change, indent=2),
+        ]
+        if cpo["action_type"] == "assign_human":
+            ticket_preview = self._assign_human_diff(change)
+            if ticket_preview:
+                lines.extend(["", "Diff:", ticket_preview])
+        return "\n".join(lines).strip()
+
+    def get_detail(self, cpo_id: str) -> dict[str, Any]:
+        cpo = self.get(cpo_id)
+        return {**cpo, "preview": self.build_preview(cpo)}
+
+    def _assign_human_diff(self, change: dict[str, Any]) -> str | None:
+        assignee = change.get("assignee")
+        if not assignee:
+            return None
+        ticket_path = self._resolve_ticket_path(change)
+        if ticket_path is None or not ticket_path.exists():
+            return f"assignee: unassigned -> {assignee}"
+        ticket = json.loads(ticket_path.read_text(encoding="utf-8"))
+        before = ticket.get("assignee", "unassigned")
+        return f"assignee: {before} -> {assignee}"
+
+    def _resolve_ticket_path(self, change: dict[str, Any]) -> Path | None:
+        if change.get("path"):
+            return Path(change["path"])
+        ticket_id = change.get("ticket_id")
+        if not ticket_id:
+            return None
+        tickets_dir = get_proposals_dir() / "tickets"
+        safe_id = str(ticket_id).replace("/", "-")
+        matches = sorted(tickets_dir.glob(f"*{safe_id}*.json"))
+        if matches:
+            return matches[0]
+        return tickets_dir / f"ticket-proposal-{safe_id}.json"
 
     def approve(self, cpo_id: str, approved_by: str = "human-reviewer") -> dict[str, Any]:
         cpo = self.get(cpo_id)
@@ -121,6 +184,8 @@ class ApprovalQueue:
         return cpo
 
     def reject(self, cpo_id: str, reason: str, rejected_by: str = "human-reviewer") -> dict[str, Any]:
+        if not reason or not reason.strip():
+            raise ApprovalQueueError("Rejection reason is required")
         cpo = self.get(cpo_id)
         if cpo["status"] != "pending":
             raise ApprovalQueueError(f"CPO {cpo_id} is not pending (status={cpo['status']})")
@@ -130,7 +195,7 @@ class ApprovalQueue:
                 "status": "rejected",
                 "rejected_by": rejected_by,
                 "rejected_at": now,
-                "rejection_reason": reason,
+                "rejection_reason": reason.strip(),
                 "updated_at": now,
             }
         )
@@ -142,9 +207,113 @@ class ApprovalQueue:
             risk_class=cpo["action_class"],
             approval_required=False,
             cpo_id=cpo_id,
-            outputs={"rejected_by": rejected_by, "reason": reason},
+            outputs={"rejected_by": rejected_by, "reason": reason.strip()},
         )
         return cpo
+
+    def execute(self, cpo_id: str) -> Any:
+        from spa.tools.guard import ToolGuard
+
+        cpo = self.get(cpo_id)
+        if cpo["status"] != "approved":
+            raise ApprovalQueueError(f"CPO {cpo_id} must be approved before execution (status={cpo['status']})")
+
+        guard = ToolGuard(queue=self, audit=self.audit)
+        action_type = cpo["action_type"]
+        change = cpo.get("proposed_change") or {}
+
+        if action_type == "assign_human":
+            tool_name = "assign_human"
+            result = guard.execute(
+                tool_name,
+                lambda: self._apply_assign_human(change),
+                cpo_id=cpo_id,
+            )
+        elif action_type == "skill_verifier_escalation":
+            result = {"status": "escalation_acknowledged", **change}
+            self.audit.emit(
+                "cpo_executed",
+                task_class="governance",
+                risk_class=cpo["action_class"],
+                approval_required=False,
+                cpo_id=cpo_id,
+                outputs=result if isinstance(result, dict) else {"result": result},
+                preview=self.build_preview(cpo),
+            )
+            return result
+        else:
+            tool_name = action_type
+            result = guard.execute(
+                tool_name,
+                lambda: change,
+                cpo_id=cpo_id,
+            )
+
+        self.audit.emit(
+            "cpo_executed",
+            task_class="governance",
+            risk_class=cpo["action_class"],
+            approval_required=False,
+            cpo_id=cpo_id,
+            outputs=result if isinstance(result, (dict, list, str)) else str(result),
+        )
+        return result
+
+    def _apply_assign_human(self, change: dict[str, Any]) -> dict[str, Any]:
+        assignee = change.get("assignee")
+        if not assignee:
+            raise ApprovalQueueError("assign_human CPO missing assignee in proposed_change")
+
+        ticket_path = self._resolve_ticket_path(change)
+        if ticket_path is None:
+            return {"assignee": assignee, "status": "assigned"}
+
+        if ticket_path.exists():
+            ticket = json.loads(ticket_path.read_text(encoding="utf-8"))
+            before = ticket.get("assignee", "unassigned")
+            ticket["assignee"] = assignee
+            ticket["status"] = change.get("status", "assigned")
+            ticket_path.parent.mkdir(parents=True, exist_ok=True)
+            ticket_path.write_text(json.dumps(ticket, indent=2), encoding="utf-8")
+            return {
+                "assignee": assignee,
+                "ticket_id": ticket.get("id", change.get("ticket_id")),
+                "path": str(ticket_path),
+                "previous_assignee": before,
+                "status": ticket["status"],
+            }
+
+        return {"assignee": assignee, "status": "assigned"}
+
+    def approve_and_execute(
+        self,
+        cpo_id: str,
+        approved_by: str = "human-reviewer",
+    ) -> dict[str, Any]:
+        cpo = self.approve(cpo_id, approved_by=approved_by)
+        result = self.execute(cpo_id)
+        return {"cpo": cpo, "execution_result": result}
+
+    def batch_approve(
+        self,
+        *,
+        action_type: str | None = None,
+        max_risk: str = "A3",
+        approved_by: str = "human-reviewer",
+        execute: bool = True,
+    ) -> list[dict[str, Any]]:
+        allowed = _allowed_risk_classes(max_risk)
+        approved: list[dict[str, Any]] = []
+        for cpo in self.list_proposals(status="pending"):
+            if cpo["action_class"] not in allowed:
+                continue
+            if action_type and cpo.get("action_type") != action_type:
+                continue
+            if execute:
+                approved.append(self.approve_and_execute(cpo["id"], approved_by=approved_by))
+            else:
+                approved.append({"cpo": self.approve(cpo["id"], approved_by=approved_by)})
+        return approved
 
     def is_approved(self, cpo_id: str) -> bool:
         try:

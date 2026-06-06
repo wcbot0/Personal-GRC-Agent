@@ -7,15 +7,22 @@ from pathlib import Path
 
 from spa.paths import ROOT
 
-SKIP_DIRS = {
+SKIP_DIR_NAMES = {
     ".git",
     ".venv",
+    "__pycache__",
+    ".pytest_cache",
     "node_modules",
+    "secrets",
+}
+
+SKIP_DIR_PREFIXES = (
     "governance/audit-logs",
     "governance/prompt-injection-tests",
     "workspace/.data",
-    "secrets",
-}
+    "tests",
+    "evals/fixtures",
+)
 
 SKIP_FILES = {
     "scripts/redteam.sh",
@@ -26,16 +33,23 @@ SKIP_FILES = {
 PATTERNS = [
     (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS access key"),
     (re.compile(r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----"), "Private key block"),
-    (re.compile(r"(?i)(api[_-]?key|secret|password)\s*=\s*['\"][^'\"]{12,}['\"]"), "Hardcoded secret"),
+    (
+        re.compile(
+            r"(?i)\b(api[_-]?key|secret|password)\s*=\s*['\"][^'\"]{12,}['\"]"
+        ),
+        "Hardcoded secret",
+    ),
 ]
 
 
 def should_scan(path: Path) -> bool:
-    rel = str(path.relative_to(ROOT))
-    for skip in SKIP_DIRS:
-        if rel.startswith(skip):
-            return False
-    if path.suffix in {".png", ".jpg", ".gif", ".woff", ".woff2"}:
+    rel = path.relative_to(ROOT)
+    if any(part in SKIP_DIR_NAMES for part in rel.parts):
+        return False
+    rel_str = str(rel)
+    if any(rel_str.startswith(prefix) for prefix in SKIP_DIR_PREFIXES):
+        return False
+    if path.suffix in {".png", ".jpg", ".gif", ".woff", ".woff2", ".pyc"}:
         return False
     return True
 
