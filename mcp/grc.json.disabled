@@ -1,0 +1,6 @@
+{
+  "name": "grc",
+  "enabled": false,
+  "providers": ["vanta", "drata", "secureframe"],
+  "notes": "DISABLED in MVP — GRC writes blocked; see connectors/grc/* stubs"
+}

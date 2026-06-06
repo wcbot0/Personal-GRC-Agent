@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spa.local/schemas/audit-event.schema.json",
+  "title": "AuditEvent",
+  "type": "object",
+  "required": [
+    "event_id",
+    "run_id",
+    "timestamp",
+    "event_type",
+    "task_class",
+    "risk_class"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "event_type": { "type": "string" },
+    "user_request": { "type": ["string", "null"] },
+    "task_class": { "type": "string" },
+    "risk_class": {
+      "type": "string",
+      "enum": ["A0", "A1", "A2", "A3", "A4", "A5"]
+    },
+    "retrieved_memory_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tools_called": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "approval_required": { "type": "boolean" },
+    "cpo_id": { "type": ["string", "null"] },
+    "outputs": { "type": ["object", "array", "string", "null"] },
+    "verifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "preview": { "type": ["string", "null"] },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}

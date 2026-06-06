@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill", "brief_markdown", "control_tags"],
+  "properties": {
+    "skill": { "const": "daily-brief" },
+    "brief_markdown": { "type": "string", "minLength": 20 },
+    "pending_approvals": { "type": "integer" },
+    "open_proposals": { "type": "integer" },
+    "control_tags": { "type": "array", "minItems": 1 }
+  }
+}

@@ -1,2 +1,152 @@
-# Security's Personal Agent
+# Security Personal Assistant (SPA)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+Portable, **local-first**, **draft-by-default** agentic assistant for security and GRC engineers. Clone → bootstrap → run. MIT-licensed public template; fork into a private org repo for your brain content and credentials.
+
+## Principles
+
+- **Draft-by-default, approve-to-publish** — reads and local drafts are autonomous; A3+ actions require an approved Change Proposal Object (CPO).
+- **Governance-as-code** — `agent/autonomy-policy.yaml` gates every tool call.
+- **Local memory** — SQLite episodic + Qdrant semantic + local embeddings (no cloud memory).
+- **Auditable** — append-only JSONL audit log for every action.
+- **Adapter-based integrations** — Linear/Jira and Vanta/Drata/Secureframe ship as **disabled stubs**; MVP is file-only.
+
+## Local run prerequisites (macOS)
+
+SPA writes runtime state to `governance/audit-logs/` and `workspace/.data/` (SQLite + Qdrant fallback). On macOS, **Transparency, Consent, and Control (TCC)** can block writes even when Unix permissions look correct (`Operation not permitted`). This is an environment issue, not a code bug.
+
+**Preferred:** Clone or move the repo to a plain, non-synced path your terminal can write to, e.g. `~/dev/security-personal-assistant` or `~/projects/security-personal-assistant`. Avoid Desktop, Documents, Downloads, and iCloud-synced folders.
+
+**If writes still fail:**
+
+1. Grant **Full Disk Access** to your terminal app and Cursor (System Settings → Privacy & Security → Full Disk Access), then restart both.
+2. Clear the quarantine flag on a freshly downloaded clone:
+   ```bash
+   xattr -dr com.apple.quarantine .
+   ```
+
+**Verify before bootstrap:**
+
+```bash
+echo test > governance/audit-logs/_t.tmp && rm governance/audit-logs/_t.tmp
+python -m spa.selftest   # or: make selftest
+```
+
+Both commands must succeed with no `Operation not permitted` errors.
+
+## Quickstart (< 30 min)
+
+```bash
+git clone <your-fork-url> security-personal-assistant
+cd security-personal-assistant
+./bootstrap.sh
+```
+
+Bootstrap is idempotent: creates venv, starts Docker (Qdrant + local embedding model), seeds `brain/` into vector memory, runs `make selftest`.
+
+### Common commands
+
+```bash
+make selftest                              # milestone / health checks
+make ingest FILE=evals/fixtures/meeting_sample.md
+spa run-skill meeting-synth --input evals/fixtures/meeting_sample.md
+make proposals                             # list pending CPOs
+make approve ID=cpo-<uuid>
+make eval                                  # golden-fixture skill evals
+make redteam                               # prompt-injection corpus
+```
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph inputs [Inputs]
+    inbox[inbox/]
+    brain[brain/]
+  end
+  subgraph agent [Agent Runtime]
+    hermes[Hermes - swappable]
+    policy[autonomy-policy.yaml]
+    guard[Tool Guard]
+  end
+  subgraph memory [Local Memory]
+    sqlite[(SQLite FTS5)]
+    qdrant[(Qdrant)]
+    embed[Local Embeddings]
+  end
+  subgraph outputs [Draft Outputs]
+    drafts[workspace/drafts/]
+    proposals[workspace/proposals/]
+    cpo[governance/approval-queue/]
+    audit[governance/audit-logs/]
+  end
+  inbox --> guard
+  brain --> guard
+  hermes --> guard
+  policy --> guard
+  guard --> sqlite
+  guard --> qdrant
+  embed --> qdrant
+  guard --> drafts
+  guard --> proposals
+  guard --> cpo
+  guard --> audit
+```
+
+## Runtime swap (Hermes default)
+
+Default runtime is **Hermes Agent** (MCP-compliant). Change only:
+
+- `agent/runtime.config.yaml`
+- `mcp/*.json` configs
+
+Skills and `brain/` stay unchanged.
+
+## Fork into a private org repo
+
+1. **Use this repo as a template** (GitHub “Use this template”) or mirror to your org.
+2. **Private fork** — add org policies, real `brain/` content, `.env` secrets (never commit).
+3. **Enable connectors post-MVP** — set `TICKET_PROVIDER` / `GRC_PROVIDER`, rename `mcp/*.json.disabled` → `mcp/*.json`, implement live adapters behind `connectors/interfaces/`.
+4. **CODEOWNERS** — replace `@literal:wcbot0` with your team handles.
+5. **Strip for public sharing** — remove private brain content, audit logs, approval queue, and workspace state before pushing to a public template.
+
+## Repository layout
+
+| Path | Purpose |
+|------|---------|
+| `agent/` | Charter, autonomy policy, runtime config |
+| `brain/` | Git-backed Security Brain (Markdown/YAML) |
+| `skills/` | Versioned drafting skills + verifiers |
+| `connectors/` | Ticket/GRC/notes interfaces + disabled vendor stubs |
+| `governance/` | Redaction rules, audit logs, approval queue, redteam corpus |
+| `evals/` | Golden fixtures and `run_evals.py` |
+| `mcp/` | MCP server configs (vendor configs `.disabled`) |
+
+## Action-risk model
+
+| Class | Approval | MVP examples |
+|-------|----------|--------------|
+| A0 | none | read inbox, search memory |
+| A1 | none | local markdown drafts |
+| A2 | notify | draft PR body files, AI-Proposed tickets |
+| A3 | **required CPO** | assign human, raise priority |
+| A4 | **required CPO** | merge PR, publish policy, GRC write |
+| A5 | blocked | prod IAM, delete audit logs |
+
+## Skills (MVP)
+
+- `meeting-synth` — transcript → decisions, risks, ticket proposal files
+- `ticket-draft` — AI-Proposed unassigned ticket JSON
+- `policy-redline` — policy redline + draft PR body on `agent/` branch
+- `csf-crosswalk` — CSF 2.0 + SOC2 + 800-53 mapping
+- `daily-brief` — pending approvals and open proposals
+- `evidence-pack` — evidence index drafts under `brain/evidence/`
+
+## CI
+
+GitHub Actions: `policy-lint`, `skill-tests`, `secret-scan`, `redteam`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

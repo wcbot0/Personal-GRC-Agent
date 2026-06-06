@@ -1,0 +1,88 @@
+# Single source of truth for action-risk gates (governance-as-code).
+version: "1.0"
+defaults:
+  ticket_assignee: unassigned
+  pr_mode: draft
+  policy_write_path: brain/03-policies/proposals/
+
+action_classes:
+  A0:
+    label: read
+    approval: none
+    log: true
+    examples:
+      - read_inbox
+      - read_brain
+      - read_tickets
+      - read_findings
+      - search_memory
+  A1:
+    label: local_draft
+    approval: none
+    log: true
+    examples:
+      - write_local_markdown
+      - create_local_branch
+      - create_cpo
+      - write_workspace_draft
+  A2:
+    label: external_draft
+    approval: notify
+    log: true
+    examples:
+      - create_draft_pr
+      - create_ai_proposed_ticket
+      - add_provenance_comment
+  A3:
+    label: human_workflow
+    approval: required
+    log: true
+    block_without_cpo: true
+    examples:
+      - assign_human
+      - raise_priority_above_high
+      - change_due_date
+      - terminal_ticket_state
+  A4:
+    label: authoritative_record
+    approval: required
+    log: true
+    block_without_cpo: true
+    examples:
+      - merge_pr
+      - publish_policy
+      - grc_write
+  A5:
+    label: high_risk
+    approval: blocked
+    log: true
+    examples:
+      - prod_iam_change
+      - secret_rotation
+      - delete_evidence
+      - delete_audit_logs
+      - risk_acceptance
+
+tool_mappings:
+  read_file: A0
+  search_memory: A0
+  ingest_file: A0
+  write_draft_file: A1
+  create_git_branch: A1
+  create_cpo: A1
+  create_draft_pr: A2
+  create_ticket_draft: A2
+  assign_human: A3
+  raise_priority: A3
+  merge_pr: A4
+  publish_policy: A4
+  grc_write: A4
+  prod_iam_change: A5
+
+connectors:
+  ticket:
+    default_provider: none
+    live_write_enabled: false
+  grc:
+    default_provider: none
+    live_write_enabled: false

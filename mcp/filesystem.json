@@ -1,0 +1,8 @@
+{
+  "name": "filesystem",
+  "enabled": true,
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-filesystem", "./brain", "./inbox", "./workspace/drafts"],
+  "notes": "Read-only brain/inbox access for Hermes runtime"
+}

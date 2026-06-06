@@ -1,0 +1,6 @@
+{
+  "required_fields": ["control_id", "period", "index_file", "control_tags"],
+  "control_id": "CC6.1",
+  "index_file_contains": "brain/evidence",
+  "min_control_tags": 1
+}

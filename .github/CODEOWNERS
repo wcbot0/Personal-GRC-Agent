@@ -1,0 +1,5 @@
+# Required human review for agent behavior and authoritative content
+/agent/                    @literal:wcbot0
+/skills/                   @literal:wcbot0
+/brain/03-policies/        @literal:wcbot0
+/agent/autonomy-policy.yaml @literal:wcbot0
