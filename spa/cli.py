@@ -38,7 +38,8 @@ def proposals_list(status: str) -> None:
         click.echo("No proposals found.")
         return
     for cpo in items:
-        click.echo(f"{cpo['id']}  [{cpo['status']}]  {cpo['title']}  ({cpo['action_class']})")
+        row = ApprovalQueue.summary_row(cpo)
+        click.echo(f"{row['id']}  {row['type']}  {row['risk']}  {row['summary']}")
 
 
 @proposals_group.command("show")
@@ -46,53 +47,61 @@ def proposals_list(status: str) -> None:
 def proposals_show(cpo_id: str) -> None:
     queue = ApprovalQueue()
     try:
-        cpo = queue.get(cpo_id)
+        detail = queue.get_detail(cpo_id)
     except ApprovalQueueError as exc:
         click.echo(str(exc), err=True)
         sys.exit(1)
-    click.echo(json.dumps(cpo, indent=2))
+    click.echo(json.dumps(detail, indent=2))
 
 
 @proposals_group.command("approve")
-@click.argument("cpo_id")
+@click.argument("cpo_id", required=False)
+@click.option("--batch", is_flag=True, help="Batch-approve pending CPOs matching filters")
+@click.option("--type", "action_type", default=None, help="Filter by action_type (batch mode)")
+@click.option("--max-risk", default="A3", help="Max action class to approve (A3|A4)")
 @click.option("--by", "approved_by", default="human-reviewer")
-def proposals_approve(cpo_id: str, approved_by: str) -> None:
+def proposals_approve(
+    cpo_id: str | None,
+    batch: bool,
+    action_type: str | None,
+    max_risk: str,
+    approved_by: str,
+) -> None:
     queue = ApprovalQueue()
+    if batch:
+        if cpo_id:
+            click.echo("Provide either cpo_id or --batch, not both.", err=True)
+            sys.exit(1)
+        try:
+            results = queue.batch_approve(
+                action_type=action_type,
+                max_risk=max_risk,
+                approved_by=approved_by,
+            )
+        except ApprovalQueueError as exc:
+            click.echo(str(exc), err=True)
+            sys.exit(1)
+        for item in results:
+            click.echo(f"Approved {item['cpo']['id']}")
+        click.echo(f"Batch approved {len(results)} proposal(s)")
+        return
+
+    if not cpo_id:
+        click.echo("Missing CPO id. Use 'spa proposals approve <id>' or '--batch'.", err=True)
+        sys.exit(1)
+
     try:
-        cpo = queue.approve(cpo_id, approved_by=approved_by)
+        result = queue.approve_and_execute(cpo_id, approved_by=approved_by)
     except ApprovalQueueError as exc:
         click.echo(str(exc), err=True)
         sys.exit(1)
-    click.echo(f"Approved {cpo['id']}")
-
-
-@proposals_group.command("batch-approve")
-@click.option("--type", "action_type", default=None, help="Filter by action_type")
-@click.option("--max-risk", default="A3", help="Max action class to approve (A3|A4)")
-@click.option("--by", "approved_by", default="human-reviewer")
-def proposals_batch_approve(action_type: str | None, max_risk: str, approved_by: str) -> None:
-    """Batch-approve pending CPOs matching type and max risk."""
-    queue = ApprovalQueue()
-    risk_order = ["A3", "A4", "A5"]
-    if max_risk not in risk_order:
-        click.echo("max-risk must be A3 or A4", err=True)
-        raise SystemExit(1)
-    allowed = set(risk_order[: risk_order.index(max_risk) + 1])
-    count = 0
-    for cpo in queue.list_proposals(status="pending"):
-        if cpo["action_class"] not in allowed:
-            continue
-        if action_type and cpo.get("action_type") != action_type:
-            continue
-        queue.approve(cpo["id"], approved_by=approved_by)
-        click.echo(f"Approved {cpo['id']}")
-        count += 1
-    click.echo(f"Batch approved {count} proposal(s)")
+    click.echo(f"Approved {result['cpo']['id']}")
+    click.echo(json.dumps(result["execution_result"], indent=2, default=str))
 
 
 @proposals_group.command("reject")
 @click.argument("cpo_id")
-@click.option("--reason", required=True)
+@click.option("--reason", required=True, help="Rejection reason (required)")
 @click.option("--by", "rejected_by", default="human-reviewer")
 def proposals_reject(cpo_id: str, reason: str, rejected_by: str) -> None:
     queue = ApprovalQueue()
