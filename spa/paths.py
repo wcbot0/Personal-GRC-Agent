@@ -46,6 +46,10 @@ def get_proposals_dir() -> Path:
     return WORKSPACE_DIR / "proposals"
 
 
+def get_drafts_dir() -> Path:
+    return get_data_dir() / "drafts"
+
+
 def resolve_output_dir(context: dict | None) -> Path:
     """Skill write root: harness output_dir, else env-configurable proposals dir."""
     if context and context.get("output_dir"):

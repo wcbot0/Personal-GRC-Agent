@@ -32,4 +32,5 @@ spa/skills/ticket_draft.py
 spa/skills/verifiers.py
 spa/tools/guard.py
 tests/test_connectors.py
+tests/test_ingest_e2e.py
 tests/test_memory.py
