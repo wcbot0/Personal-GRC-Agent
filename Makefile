@@ -37,7 +37,7 @@ selftest: venv
 
 ingest: venv
 	@test -n "$(FILE)" || (echo "Usage: make ingest FILE=path/to/file" && exit 1)
-	"$(PYTHON)" -m spa.cli ingest "$(FILE)"
+	SPA_DATA_DIR=/tmp/spa_d SPA_AUDIT_DIR=/tmp/spa_a "$(PYTHON)" -m spa.cli ingest "$(FILE)"
 
 proposals: venv
 	"$(PYTHON)" -m spa.cli proposals list

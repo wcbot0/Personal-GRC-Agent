@@ -9,7 +9,7 @@ from spa.audit.logger import AuditLogger
 from spa.memory.episodic import EpisodicMemory
 from spa.memory.redaction import redact_text
 from spa.memory.semantic import SemanticMemory
-from spa.paths import ROOT, WORKSPACE_DIR
+from spa.paths import ROOT, get_drafts_dir, get_proposals_dir
 from spa.skills.runner import run_skill
 from spa.skills.ticket_draft import create_proposal
 
@@ -64,6 +64,15 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
     redacted = redact_text(content)
     source = str(file_path.relative_to(ROOT)) if file_path.is_relative_to(ROOT) else str(file_path)
 
+    audit.emit(
+        "ingest_start",
+        task_class="ingest",
+        risk_class="A0",
+        tools_called=["ingest_file"],
+        preview=redacted[:500],
+        outputs={"source": source},
+    )
+
     episodic = EpisodicMemory()
     semantic = SemanticMemory()
 
@@ -76,10 +85,27 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
             "tags": ["ingested"],
         }
     )
+    audit.emit(
+        "memory_episodic_write",
+        task_class="ingest",
+        risk_class="A0",
+        tools_called=["episodic.write"],
+        retrieved_memory_ids=[episodic_record["id"]],
+        outputs={"episodic_id": episodic_record["id"], "source": source},
+    )
+
     semantic_id = semantic.upsert_document(
         doc_id=source,
         content=redacted,
         metadata={"source": source, "type": "ingested", "tags": ["ingested"]},
+    )
+    audit.emit(
+        "memory_semantic_upsert",
+        task_class="ingest",
+        risk_class="A0",
+        tools_called=["semantic.upsert_document"],
+        retrieved_memory_ids=[semantic_id],
+        outputs={"semantic_id": semantic_id, "source": source},
     )
 
     audit.emit(
@@ -101,12 +127,17 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
         "ticket_proposals": [],
         "policy_redline": None,
         "verifications": [],
+        "artifact_dirs": {
+            "drafts": str(get_drafts_dir() / "meeting-synth"),
+            "tickets": str(get_proposals_dir() / "tickets"),
+            "proposals": str(get_proposals_dir()),
+        },
     }
 
     if not _is_meeting_content(redacted):
         return result
 
-    meeting_out = WORKSPACE_DIR / "drafts" / "meeting-synth"
+    meeting_out = get_drafts_dir() / "meeting-synth"
     meeting_result = run_skill(
         "meeting-synth",
         file_path,
@@ -125,7 +156,11 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
             task_class="ingest",
             risk_class="A2",
             tools_called=["ticket_provider.create_draft"],
-            outputs={"path": proposal["path"], "ticket_id": proposal["ticket"]["id"]},
+            outputs={
+                "path": proposal["path"],
+                "ticket_id": proposal["ticket"]["id"],
+                "control_tags": proposal["ticket"].get("control_tags", []),
+            },
             preview=proposal["ticket"].get("description", "")[:500],
         )
 
@@ -136,7 +171,7 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
         policy_result = run_skill(
             "policy-redline",
             policy_input,
-            output_dir=WORKSPACE_DIR / "proposals",
+            output_dir=get_proposals_dir(),
             audit=audit,
         )
         _assert_verifiers_passed("policy-redline", policy_result["verifications"])
