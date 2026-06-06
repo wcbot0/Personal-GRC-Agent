@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from spa.memory.redaction import redact_text
+from spa.memory.redaction import redact_obj, redact_text
 from spa.paths import get_data_dir
 
 
@@ -82,6 +82,7 @@ class SemanticMemory:
         metadata: dict[str, Any] | None = None,
     ) -> str:
         content = redact_text(content)
+        metadata = redact_obj(metadata or {})
         client = self._get_client()
         memory_id = str(uuid.uuid5(uuid.NAMESPACE_URL, doc_id))
 
@@ -92,7 +93,7 @@ class SemanticMemory:
                 "id": memory_id,
                 "doc_id": doc_id,
                 "content": content,
-                "metadata": metadata or {},
+                "metadata": metadata,
             }
             with self._local_index_path.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(entry) + "\n")
@@ -111,7 +112,7 @@ class SemanticMemory:
                         "memory_id": memory_id,
                         "doc_id": doc_id,
                         "content": content[:4000],
-                        **(metadata or {}),
+                        **metadata,
                     },
                 )
             ],

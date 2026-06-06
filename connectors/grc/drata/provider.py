@@ -4,6 +4,9 @@ from __future__ import annotations
 from typing import Any
 
 from connectors.interfaces.grc import GrcCapabilities, GrcConnector
+from connectors.messages import disabled_post_mvp_message
+
+_DISABLED = disabled_post_mvp_message("drata", "GRC_PROVIDER")
 
 
 class DrataGrcProvider(GrcConnector):
@@ -16,7 +19,7 @@ class DrataGrcProvider(GrcConnector):
         )
 
     def read_controls(self) -> list[dict[str, Any]]:
-        raise RuntimeError("Drata provider disabled in MVP.")
+        raise RuntimeError(_DISABLED)
 
     def draft_evidence(self, control_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        raise RuntimeError("Drata writes disabled in MVP.")
+        raise RuntimeError(_DISABLED)

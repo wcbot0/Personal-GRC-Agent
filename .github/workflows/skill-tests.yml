@@ -14,5 +14,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e .
-      - run: make eval
+      - name: Run skill evals
+        env:
+          SPA_DATA_DIR: ${{ runner.temp }}/spa_data
+          SPA_AUDIT_DIR: ${{ runner.temp }}/spa_audit
+        run: |
+          mkdir -p "$SPA_DATA_DIR" "$SPA_AUDIT_DIR"
+          make eval
       - run: python -m pytest tests/ -q
