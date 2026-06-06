@@ -10,7 +10,7 @@ from typing import Any
 import jsonschema
 
 from spa.memory.redaction import redact_obj
-from spa.paths import AUDIT_EVENT_SCHEMA, get_audit_logs_dir
+from spa.paths import AUDIT_EVENT_SCHEMA, ensure_private_dir, ensure_private_file, get_audit_logs_dir
 
 
 class AuditLogger:
@@ -18,6 +18,7 @@ class AuditLogger:
         self.run_id = run_id or str(uuid.uuid4())
         self.log_dir = log_dir or get_audit_logs_dir()
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        ensure_private_dir(self.log_dir)
         self._schema = json.loads(AUDIT_EVENT_SCHEMA.read_text())
 
     def _log_path(self) -> Path:
@@ -59,6 +60,10 @@ class AuditLogger:
         }
         event = redact_obj(event)
         jsonschema.validate(event, self._schema)
-        with self._log_path().open("a", encoding="utf-8") as fh:
+        log_path = self._log_path()
+        if not log_path.exists():
+            log_path.touch(mode=0o600)
+        ensure_private_file(log_path)
+        with log_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
         return event
