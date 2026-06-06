@@ -4,12 +4,15 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from connectors.comms.none.provider import NoneCommsProvider
+from connectors.comms.slack.provider import SlackCommsProvider
 from connectors.grc.drata.provider import DrataGrcProvider
 from connectors.grc.none.provider import NoneGrcProvider
 from connectors.grc.secureframe.provider import SecureframeGrcProvider
 from connectors.grc.vanta.provider import VantaGrcProvider
 from connectors.messages import POST_MVP_ENABLE_MSG, disabled_post_mvp_message
 from connectors.notes.filesystem.provider import FilesystemNotesProvider
+from connectors.notes.granola.provider import GranolaNotesProvider
 from connectors.tickets.jira.provider import JiraTicketProvider
 from connectors.tickets.linear.provider import LinearTicketProvider
 from connectors.tickets.none.provider import NoneTicketProvider
@@ -21,10 +24,18 @@ if TYPE_CHECKING:
 __all__ = [
     "POST_MVP_ENABLE_MSG",
     "disabled_post_mvp_message",
+    "get_comms_provider",
     "get_grc_provider",
     "get_notes_provider",
     "get_ticket_provider",
 ]
+
+_SAFE_PROVIDERS: dict[str, tuple[str, ...]] = {
+    "ticket": ("none",),
+    "grc": ("none",),
+    "notes": ("filesystem",),
+    "comms": ("none",),
+}
 
 
 class LiveWriteDisabledError(RuntimeError):
@@ -32,7 +43,7 @@ class LiveWriteDisabledError(RuntimeError):
 
 
 def _ensure_live_writes(connector_type: str, provider_name: str) -> None:
-    if provider_name == "none":
+    if provider_name in _SAFE_PROVIDERS.get(connector_type, ("none",)):
         return
     policy = AutonomyPolicy.load()
     if not policy.live_writes_enabled(connector_type):
@@ -69,4 +80,22 @@ def get_grc_provider(guard: "ToolGuard | None" = None):
 
 
 def get_notes_provider():
-    return FilesystemNotesProvider()
+    name = os.getenv("NOTES_PROVIDER", "filesystem").lower()
+    _ensure_live_writes("notes", name)
+    providers = {
+        "filesystem": FilesystemNotesProvider,
+        "granola": GranolaNotesProvider,
+    }
+    cls = providers.get(name, FilesystemNotesProvider)
+    return cls()
+
+
+def get_comms_provider():
+    name = os.getenv("COMMS_PROVIDER", "none").lower()
+    _ensure_live_writes("comms", name)
+    providers = {
+        "none": NoneCommsProvider,
+        "slack": SlackCommsProvider,
+    }
+    cls = providers.get(name, NoneCommsProvider)
+    return cls()
