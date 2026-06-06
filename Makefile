@@ -1,10 +1,15 @@
-.PHONY: help bootstrap selftest ingest proposals show approve reject eval redteam lint policy-lint secret-scan up down seed clean
+.PHONY: help bootstrap selftest ingest proposals show approve reject eval redteam lint policy-lint secret-scan up down seed clean _ensure_python venv
 
 SHELL := /bin/bash
 ROOT := $(CURDIR)
 VENV := $(ROOT)/.venv
+ifdef CI
+PYTHON := python
+PIP := pip
+else
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
+endif
 
 help:
 	@echo "Security Personal Assistant — common targets"
@@ -29,43 +34,48 @@ $(VENV)/bin/python:
 
 venv: $(VENV)/bin/python
 
+_ensure_python:
+ifndef CI
+	@test -x "$(PYTHON)" || $(MAKE) venv
+endif
+
 bootstrap:
 	./bootstrap.sh
 
-selftest: venv
+selftest: _ensure_python
 	"$(PYTHON)" -m spa.selftest
 
-ingest: venv
+ingest: _ensure_python
 	@test -n "$(FILE)" || (echo "Usage: make ingest FILE=path/to/file" && exit 1)
 	SPA_DATA_DIR=/tmp/spa_d SPA_AUDIT_DIR=/tmp/spa_a "$(PYTHON)" -m spa.cli ingest "$(FILE)"
 
-proposals: venv
+proposals: _ensure_python
 	"$(PYTHON)" -m spa.cli proposals list
 
-show: venv
+show: _ensure_python
 	@test -n "$(ID)" || (echo "Usage: make show ID=cpo-id" && exit 1)
 	"$(PYTHON)" -m spa.cli proposals show "$(ID)"
 
-approve: venv
+approve: _ensure_python
 	@test -n "$(ID)" || (echo "Usage: make approve ID=cpo-id" && exit 1)
 	"$(PYTHON)" -m spa.cli proposals approve "$(ID)"
 
-reject: venv
+reject: _ensure_python
 	@test -n "$(ID)" || (echo "Usage: make reject ID=cpo-id REASON='reason'" && exit 1)
 	"$(PYTHON)" -m spa.cli proposals reject "$(ID)" --reason "$(REASON)"
 
-eval: venv
-	SPA_DATA_DIR=/tmp/spa_d SPA_AUDIT_DIR=/tmp/spa_a "$(PYTHON)" evals/run_evals.py
+eval: _ensure_python
+	SPA_DATA_DIR="$${SPA_DATA_DIR:-/tmp/spa_d}" SPA_AUDIT_DIR="$${SPA_AUDIT_DIR:-/tmp/spa_a}" "$(PYTHON)" evals/run_evals.py
 
-redteam: venv
+redteam: _ensure_python
 	./scripts/redteam.sh
 
 lint: policy-lint secret-scan
 
-policy-lint: venv
+policy-lint: _ensure_python
 	"$(PYTHON)" -m spa.lint.policy
 
-secret-scan: venv
+secret-scan: _ensure_python
 	"$(PYTHON)" -m spa.lint.secrets
 
 up:
@@ -74,7 +84,7 @@ up:
 down:
 	docker compose down
 
-seed: venv
+seed: _ensure_python
 	"$(PYTHON)" scripts/seed_brain.py
 
 clean:
