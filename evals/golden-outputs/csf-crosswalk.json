@@ -1,0 +1,4 @@
+{
+  "required_fields": ["control_mappings", "gaps", "control_tags"],
+  "min_mappings": 1
+}

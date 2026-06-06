@@ -1,0 +1,4 @@
+{
+  "required_fields": ["redline_file", "draft_pr_body_file", "control_tags"],
+  "redline_file_contains": "03-policies/proposals"
+}

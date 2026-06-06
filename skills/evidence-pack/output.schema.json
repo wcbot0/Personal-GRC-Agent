@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill", "control_id", "period", "index_file", "control_tags"],
+  "properties": {
+    "skill": { "const": "evidence-pack" },
+    "control_id": { "type": "string", "minLength": 1 },
+    "period": { "type": "string", "minLength": 1 },
+    "index_file": { "type": "string", "minLength": 1 },
+    "control_tags": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+  }
+}

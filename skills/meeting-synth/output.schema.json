@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill", "decisions", "risks", "action_items", "proposed_tickets", "control_tags"],
+  "properties": {
+    "skill": { "const": "meeting-synth" },
+    "decisions": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "action_items": { "type": "array", "items": { "type": "string" } },
+    "proposed_tickets": { "type": "array" },
+    "control_tags": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "ticket_files": { "type": "array" }
+  }
+}

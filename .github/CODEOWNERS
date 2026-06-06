@@ -1,0 +1,5 @@
+# Required human review for agent behavior and authoritative content
+/agent/                    @williamblessing
+/skills/                   @williamblessing
+/brain/03-policies/        @williamblessing
+/agent/autonomy-policy.yaml @williamblessing

@@ -1,0 +1,11 @@
+{
+  "required_fields": [
+    "decisions",
+    "risks",
+    "action_items",
+    "proposed_tickets",
+    "control_tags"
+  ],
+  "min_tickets": 1,
+  "min_control_tags": 2
+}

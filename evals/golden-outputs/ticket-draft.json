@@ -1,0 +1,7 @@
+{
+  "required_fields": ["ticket", "control_tags"],
+  "ticket": {
+    "assignee": "unassigned",
+    "status": "ai_proposed"
+  }
+}
