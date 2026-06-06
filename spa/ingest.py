@@ -9,7 +9,7 @@ from spa.audit.logger import AuditLogger
 from spa.memory.episodic import EpisodicMemory
 from spa.memory.redaction import redact_text
 from spa.memory.semantic import SemanticMemory
-from spa.paths import ROOT, get_drafts_dir, get_proposals_dir
+from spa.paths import ROOT, get_drafts_dir, get_proposals_dir, rel_to_repo
 from spa.skills.runner import run_skill
 from spa.skills.ticket_draft import create_proposal
 
@@ -49,6 +49,10 @@ def _assert_verifiers_passed(skill: str, verifications: list[dict[str, Any]]) ->
         raise RuntimeError(f"{skill} verifiers failed: {details}")
 
 
+def _audit_content_summary(content: str) -> str:
+    return f"content omitted; chars={len(content)}"
+
+
 def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
     audit = audit or AuditLogger()
     file_path = Path(path)
@@ -69,7 +73,7 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
         task_class="ingest",
         risk_class="A0",
         tools_called=["ingest_file"],
-        preview=redacted[:500],
+        preview=_audit_content_summary(redacted),
         outputs={"source": source},
     )
 
@@ -115,7 +119,7 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
         tools_called=["ingest_file"],
         retrieved_memory_ids=[episodic_record["id"], semantic_id],
         outputs={"source": source, "episodic_id": episodic_record["id"], "semantic_id": semantic_id},
-        preview=redacted[:500],
+        preview=_audit_content_summary(redacted),
     )
 
     result: dict[str, Any] = {
@@ -157,11 +161,11 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
             risk_class="A2",
             tools_called=["ticket_provider.create_draft"],
             outputs={
-                "path": proposal["path"],
+                "path": rel_to_repo(Path(proposal["path"])),
                 "ticket_id": proposal["ticket"]["id"],
                 "control_tags": proposal["ticket"].get("control_tags", []),
             },
-            preview=proposal["ticket"].get("description", "")[:500],
+            preview=f"ticket_id={proposal['ticket']['id']}",
         )
 
     policy_text = _policy_change_text(redacted, meeting_result["output"].get("action_items", []))
