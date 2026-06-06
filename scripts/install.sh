@@ -25,7 +25,8 @@ case "$RUNTIME" in
       echo "[install] Hermes Agent already installed: $(hermes --version 2>/dev/null || echo ok)"
     else
       echo "[install] Hermes Agent not found locally."
-      echo "[install] Install from: https://github.com/ComposioHQ/hermes (or your org mirror)"
+      echo "[install] Install: curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash"
+      echo "[install] Then wire this repo: ./scripts/setup-hermes.sh"
       echo "[install] MVP skills run via 'spa' CLI without Hermes; runtime is swappable."
     fi
     ;;

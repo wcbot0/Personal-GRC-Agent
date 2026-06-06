@@ -17,6 +17,7 @@ Clone → bootstrap → run. MIT-licensed public template; fork into a private o
 - [Core principles](#core-principles)
 - [How it works](#how-it-works)
 - [Setup guide](#setup-guide)
+- [Integrating with Hermes Agent](#integrating-with-hermes-agent)
 - [Configuration](#configuration)
 - [Skills and use cases](#skills-and-use-cases)
 - [Common workflows](#common-workflows)
@@ -253,6 +254,149 @@ See [Configuration](#configuration) below for all variables.
 
 ---
 
+## Integrating with Hermes Agent
+
+PGA works in two modes. You can use either one or both:
+
+| Mode | What you get | When to use it |
+|------|----------------|----------------|
+| **`spa` CLI** (no Hermes required) | Verifier-gated skills, ToolGuard, hash-chained audit logs, ingest pipeline | Batch drafting, CI, anything that must be auditable |
+| **Hermes Agent** (optional chat runtime) | Conversational assistant with MCP access to your Security Brain | Explore policies, ask questions, iterate in chat |
+
+If you already ran `./bootstrap.sh`, the `spa` side is ready. This section covers wiring in **Hermes** — the [Nous Hermes Agent](https://hermes-agent.nousresearch.com) CLI you may already have installed.
+
+### What you need
+
+1. **This repo bootstrapped** — `./bootstrap.sh` completed successfully (`spa --help` works).
+2. **Hermes Agent** — the `hermes` command on your PATH.
+3. **Node.js / `npx`** — used by the filesystem MCP server (usually installed with Hermes).
+4. **An LLM provider** — configured in Hermes (`hermes model` or `hermes setup`).
+
+You do **not** need to copy skills or brain content anywhere else. Hermes reads them from this repo.
+
+### Step 1 — Install Hermes (if you don't have it)
+
+```bash
+curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+source ~/.zshrc   # or ~/.bashrc
+hermes --version
+```
+
+### Step 2 — Bootstrap PGA (if you haven't yet)
+
+From the repo root:
+
+```bash
+cd Personal-GRC-Agent    # your clone path
+./bootstrap.sh
+```
+
+Wait until `make selftest` passes at the end.
+
+### Step 3 — Wire Hermes to this repo
+
+Run the one-time setup script:
+
+```bash
+./scripts/setup-hermes.sh
+```
+
+This registers an MCP filesystem server named `pga-filesystem` that gives Hermes read/write access to:
+
+- `brain/` — your Security Brain
+- `inbox/` — drop notes here
+- `workspace/drafts/` — draft outputs
+
+The script is idempotent — safe to re-run.
+
+**Manual alternative** — add this block to `~/.hermes/config.yaml` under `mcp_servers:` (use absolute paths):
+
+```yaml
+mcp_servers:
+  pga-filesystem:
+    command: npx
+    args:
+      - -y
+      - "@modelcontextprotocol/server-filesystem"
+      - /absolute/path/to/Personal-GRC-Agent/brain
+      - /absolute/path/to/Personal-GRC-Agent/inbox
+      - /absolute/path/to/Personal-GRC-Agent/workspace/drafts
+    enabled: true
+```
+
+Then test: `hermes mcp test pga-filesystem`
+
+Or interactively: `hermes mcp add pga-filesystem --command npx` (Hermes will prompt for args and tool selection).
+
+### Step 4 — Configure your LLM
+
+Hermes needs a model to chat. Pick one:
+
+```bash
+hermes model          # interactive picker
+# or
+hermes setup          # full wizard (provider, tools, etc.)
+hermes doctor         # diagnose anything missing
+```
+
+PGA's `.env` file (`LLM_API_KEY`, etc.) is used by the `spa` CLI. Hermes keeps its own API keys in `~/.hermes/.env` — configure both if you use both modes.
+
+### Step 5 — Start chatting
+
+Always launch Hermes **from the repo root** so it loads `AGENTS.md` (workspace rules derived from `agent/charter.md`):
+
+```bash
+cd /path/to/Personal-GRC-Agent
+hermes chat
+```
+
+Try prompts like:
+
+- "Summarize our access control policy in `brain/03-policies/`"
+- "What frameworks do we have crosswalks for in `brain/01-frameworks/`?"
+- "I dropped meeting notes in `inbox/` — what should I run to process them?"
+
+### Step 6 — Run governed skills (recommended for real work)
+
+Hermes can read and draft files via MCP, but **verifier gates, redaction-at-write, and hash-chained audit logs** are enforced by the `spa` CLI. For production-quality drafts, use:
+
+```bash
+source .venv/bin/activate
+
+# Drop notes in inbox/, then:
+spa ingest inbox/my-meeting-notes.md
+
+# Or run a skill directly:
+spa run-skill meeting-synth --input evals/fixtures/meeting_sample.md
+spa run-skill ticket-draft --input evals/fixtures/ticket_input.md
+```
+
+A typical flow: chat with Hermes to explore and plan → run `spa` skills to produce verified, audited artifacts → review outputs in `workspace/drafts/`.
+
+### Optional — vendor MCP servers (post-MVP)
+
+Example configs for Linear, GitHub, Slack, and GRC tools live in `mcp/` but ship **disabled** (`.json.disabled`). In MVP, connectors are file-only stubs. When you're ready post-fork:
+
+1. Rename or copy the relevant file (e.g. `mcp/github.json.disabled` → reference in Hermes).
+2. Add credentials to `~/.hermes/.env`.
+3. Register with `hermes mcp add` using the transport settings from the JSON file.
+4. Enable `live_writes` in `agent/autonomy-policy.yaml` only after policy review.
+
+### Hermes integration troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `hermes: command not found` | Reload shell (`source ~/.zshrc`) or reinstall Hermes |
+| `Hermes Agent not found` during bootstrap | Expected if Hermes isn't installed yet — bootstrap still works; install Hermes and run `./scripts/setup-hermes.sh` |
+| MCP server won't connect | Run `hermes mcp test pga-filesystem`; ensure `npx` works (`node --version`) |
+| Hermes can't see repo files | Re-run `./scripts/setup-hermes.sh` after moving the repo (paths are absolute) |
+| Chat ignores PGA rules | Start `hermes chat` from the repo root (loads `AGENTS.md`) |
+| API key errors | Run `hermes model` or `hermes doctor` — Hermes keys live in `~/.hermes/.env`, not PGA's `.env` |
+
+Runtime wiring is declared in `agent/runtime.config.yaml`. Swap runtimes there without changing skills or brain content.
+
+---
+
 ## Configuration
 
 All runtime settings live in `.env` (never commit this file):
@@ -486,13 +630,7 @@ make seed
 
 ### Hermes agent sessions (full runtime)
 
-With Hermes installed and `.env` configured:
-
-1. Hermes reads `agent/charter.md` and `agent/autonomy-policy.yaml`
-2. MCP servers in `mcp/` provide filesystem access to `brain/`, `inbox/`, and `workspace/drafts/`
-3. Skills in `skills/` are available as drafting workflows
-
-Swap runtimes by editing `agent/runtime.config.yaml` — skills and brain content stay unchanged.
+For conversational access to your Security Brain, see **[Integrating with Hermes Agent](#integrating-with-hermes-agent)** above.
 
 ---
 
