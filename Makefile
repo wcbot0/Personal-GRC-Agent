@@ -55,7 +55,7 @@ reject: venv
 	"$(PYTHON)" -m spa.cli proposals reject "$(ID)" --reason "$(REASON)"
 
 eval: venv
-	"$(PYTHON)" evals/run_evals.py
+	SPA_DATA_DIR=/tmp/spa_d SPA_AUDIT_DIR=/tmp/spa_a "$(PYTHON)" evals/run_evals.py
 
 redteam: venv
 	./scripts/redteam.sh

@@ -3,14 +3,15 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 from typing import Any
 
-from connectors.registry import get_ticket_provider
+from spa.paths import resolve_output_dir
 
 
 def create_proposal(ticket: dict[str, Any]) -> dict[str, Any]:
     """Persist an AI-proposed ticket via the configured ticket provider (file-only in MVP)."""
+    from connectors.registry import get_ticket_provider
+
     record = dict(ticket)
     record.setdefault("status", "ai_proposed")
     record.setdefault("assignee", "unassigned")
@@ -26,8 +27,7 @@ def create_proposal(ticket: dict[str, Any]) -> dict[str, Any]:
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    ctx = context or {}
-    out_dir: Path = ctx.get("output_dir", Path("."))
+    out_dir = resolve_output_dir(context)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     title_match = re.search(r"(?im)^#\s+(.+)$", content)
@@ -46,15 +46,25 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         "rationale": "Draft ticket generated locally; assignee remains unassigned per MVP policy.",
         "control_tags": ["CSF:PR.IP", "SOC2:CC8.1", "800-53:CM-3"],
     }
-    result = create_proposal(ticket)
-    path = Path(result["path"])
-    if path.parent != out_dir:
-        artifact = out_dir / path.name
-        artifact.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-        result["path"] = str(artifact)
+    record = dict(ticket)
+    record.setdefault("status", "ai_proposed")
+    record.setdefault("assignee", "unassigned")
+    owner = record.get("suggested_owner", "security-team")
+    rationale = record.get("rationale", "Draft ticket generated locally; assignee remains unassigned.")
+    record.setdefault(
+        "description",
+        f"{record.get('title', 'AI-Proposed security task')}\n\n"
+        f"Suggested owner: {owner}\n\n{rationale}",
+    )
+    record.setdefault("control_tags", ["CSF:PR.IP", "SOC2:CC8.1", "800-53:CM-3"])
+
+    ticket_id = record.get("id", "ai-proposed").replace("/", "-")
+    path = out_dir / f"ticket-proposal-{ticket_id}.json"
+    path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+
     return {
         "skill": "ticket-draft",
-        "ticket": result["ticket"],
-        "artifact_file": Path(result["path"]).name,
-        "control_tags": result["ticket"]["control_tags"],
+        "ticket": record,
+        "artifact_file": path.name,
+        "control_tags": record["control_tags"],
     }

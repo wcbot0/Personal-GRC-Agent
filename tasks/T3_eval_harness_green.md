@@ -11,7 +11,9 @@ non-zero on any miss.
 
 ## Files touched
 - `evals/run_evals.py` — load fixtures, run each skill, compare to golden, print
-  one PASS/FAIL line per skill, exit non-zero on any failure.
+  one PASS/FAIL line per skill, exit non-zero on any failure. Set
+  `SPA_DATA_DIR`/`SPA_AUDIT_DIR` to `/tmp/spa_d` and `/tmp/spa_a` when unset
+  so audit/data writes stay outside the repo tree.
 - `evals/fixtures/` — ensure ≥1 sanitized input per skill
   (meeting-synth, ticket-draft, policy-redline, csf-crosswalk, evidence-pack,
   daily-brief).
@@ -21,9 +23,11 @@ non-zero on any miss.
   missing; only `skill.md` exists).
 
 ## Acceptance criteria
-- `python evals/run_evals.py` exits 0.
+- `SPA_DATA_DIR=/tmp/spa_d SPA_AUDIT_DIR=/tmp/spa_a python evals/run_evals.py`
+  exits 0 (isolated paths avoid writing into the repo tree / T1 write-block).
 - Output shows exactly one PASS line for each of the 6 skills.
 - Deliberately corrupting one golden file makes the run exit non-zero.
+- Running evals creates no files under `governance/` or `workspace/`.
 
 ## Do NOT
 - Do not weaken scoring to force a pass. Fix the skill or the fixture instead.

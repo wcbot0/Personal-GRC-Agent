@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Any
+
+from spa.paths import resolve_output_dir
 
 
 _SECTION_HEADERS = frozenset(
@@ -27,8 +28,7 @@ def _extract_bullets(text: str, keywords: list[str]) -> list[str]:
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    ctx = context or {}
-    out_dir: Path = ctx.get("output_dir", Path("."))
+    out_dir = resolve_output_dir(context)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     decisions = _extract_bullets(content, ["decided", "decision", "agreed", "approved"])
