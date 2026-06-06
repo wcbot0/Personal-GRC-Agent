@@ -1,8 +1,10 @@
-# Security Personal Assistant (SPA)
+# Personal GRC Agent (PGA)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A **local-first**, **draft-by-default** agentic assistant for security and GRC engineers. SPA helps you turn meeting notes, policy changes, and compliance artifacts into structured drafts — decisions, ticket proposals, control mappings, evidence indexes — without auto-publishing anything to external systems.
+A **local-first**, **draft-by-default** agentic assistant for security and GRC engineers. PGA helps you turn meeting notes, policy changes, and compliance artifacts into structured drafts — decisions, ticket proposals, control mappings, evidence indexes — without auto-publishing anything to external systems.
+
+The Python package and CLI command are **`spa`** (historical namespace). Throughout this repo, **PGA** refers to the product; **`spa`** refers to the installable CLI (`pip install -e .` → `spa` on your PATH).
 
 Clone → bootstrap → run. MIT-licensed public template; fork into a private org repo for your Security Brain content and credentials.
 
@@ -10,7 +12,7 @@ Clone → bootstrap → run. MIT-licensed public template; fork into a private o
 
 ## Table of contents
 
-- [What is SPA?](#what-is-spa)
+- [What is PGA?](#what-is-pga)
 - [Who is it for?](#who-is-it-for)
 - [Core principles](#core-principles)
 - [How it works](#how-it-works)
@@ -27,17 +29,18 @@ Clone → bootstrap → run. MIT-licensed public template; fork into a private o
 
 ---
 
-## What is SPA?
+## What is PGA?
 
-SPA (Security Personal Assistant) is a portable GRC copilot that runs on your workstation. It combines:
+**Personal GRC Agent (PGA)** is a portable GRC copilot that runs on your workstation. It combines:
 
 - A **Security Brain** — git-backed Markdown/YAML knowledge base (`brain/`) for frameworks, policies, controls, and evidence
 - **Drafting skills** — versioned, verifier-gated workflows for meeting synthesis, ticket drafting, policy redlines, control crosswalks, and more
 - **Local memory** — SQLite episodic store + Qdrant semantic search with local embeddings (no cloud memory)
 - **Governance-as-code** — every tool call is classified A0–A5; high-risk actions require human approval via Change Proposal Objects (CPOs)
-- **Full audit trail** — append-only JSONL logs for reconstructability
+- **Enforced tool guard** — all filesystem, memory, and connector writes route through `ToolGuard` + `guarded_write()`; unknown tools are blocked at A5
+- **Hash-chained audit trail** — append-only JSONL logs with SHA-256 event chaining, provenance fields, and CLI verification/export for auditors
 
-In MVP mode, SPA is **file-only**: it produces local drafts and AI-Proposed ticket JSON files. Connectors for Linear, Jira, Vanta, Drata, and Secureframe ship as disabled stubs — enable them post-MVP when you're ready for live integrations.
+In MVP mode, PGA is **file-only**: it produces local drafts and AI-Proposed ticket JSON files. Connectors for Linear, Jira, Vanta, Drata, and Secureframe ship as disabled stubs — enable them post-MVP when you're ready for live integrations (`live_writes` remains off until explicitly enabled in policy).
 
 ---
 
@@ -48,7 +51,7 @@ In MVP mode, SPA is **file-only**: it produces local drafts and AI-Proposed tick
 | **Staff Security / GRC engineer** | Turn steering meetings into tracked action items and control-tagged tickets |
 | **Compliance lead** | Draft evidence packs, crosswalk controls across frameworks, redline policies |
 | **Security program manager** | Daily briefs on pending approvals, open proposals, and recent activity |
-| **Engineering teams adopting SPA** | Fork the template, populate `brain/`, wire connectors, enforce governance in CI |
+| **Engineering teams adopting PGA** | Fork the template, populate `brain/`, wire connectors, enforce governance in CI |
 
 ---
 
@@ -57,10 +60,11 @@ In MVP mode, SPA is **file-only**: it produces local drafts and AI-Proposed tick
 | Principle | What it means |
 |-----------|---------------|
 | **Draft-by-default, approve-to-publish** | Reads and local drafts are autonomous. Assigning work to humans, publishing policies, or writing to GRC/ticket systems requires an approved CPO. |
-| **Governance-as-code** | `agent/autonomy-policy.yaml` is the single source of truth for action-risk gates. |
+| **Governance-as-code** | `agent/autonomy-policy.yaml` is the single source of truth for action-risk gates and tool mappings. |
+| **Enforcement, not convention** | Writes go through `ToolGuard`; verifier failures block artifact output; CPO `action_type` must match the tool being executed. |
 | **Local-first memory** | Episodic (SQLite), semantic (Qdrant), procedural (skills), and audit (JSONL) stay on-box. |
-| **Redaction-at-write** | Secrets and PII are stripped before anything is persisted (`governance/redaction-rules.yaml`). |
-| **Auditable** | Every action emits a JSONL audit event with run ID, risk class, context, and outputs. |
+| **Redaction-at-write** | Secrets and PII are stripped before anything is persisted (`governance/redaction-rules.yaml`). Ingest passes redacted content to downstream skills. |
+| **Auditable and tamper-evident** | Every action emits a hash-chained JSONL audit event with run ID, risk class, provenance, and minimal outputs (no document bodies in logs). |
 | **Runtime-swappable** | Default agent runtime is Hermes (MCP-compliant). Swap via config without changing skills or brain content. |
 
 ---
@@ -122,11 +126,12 @@ flowchart TB
 
 1. **Input** — A file lands in `inbox/`, is passed to a skill, or is ingested from `brain/`.
 2. **Redaction** — Content is scanned for secrets/PII before persistence.
-3. **Policy check** — `ToolGuard` classifies the action (A0–A5) against `autonomy-policy.yaml`.
-4. **Skill execution** — The skill produces structured JSON output and optional file artifacts.
-5. **Verification** — Schema validation, rubric checks, and secret scans run. Failures trigger one retry; a second failure escalates to the approval queue.
-6. **Audit** — Every step writes to `governance/audit-logs/*.jsonl`.
-7. **Review** — You review drafts locally. A3+ actions wait for CPO approval before execution.
+3. **Policy check** — `ToolGuard` classifies the action (A0–A5) against `autonomy-policy.yaml`. Unknown tools default to A5 (blocked).
+4. **Guarded execution** — Memory writes, skill artifacts, and connector calls run through `guarded_write()`. A2 actions emit `tool_notify` audit events.
+5. **Skill execution** — The skill produces structured JSON output and optional file artifacts.
+6. **Verification** — Schema validation, rubric checks, and secret scans run. Failures trigger one retry; a second failure escalates to the approval queue and **blocks artifact write**.
+7. **Audit** — Every step appends a hash-linked event to `governance/audit-logs/*.jsonl`.
+8. **Review** — You review drafts locally. A3+ actions wait for CPO approval before execution.
 
 ### Memory model
 
@@ -135,7 +140,7 @@ flowchart TB
 | **Episodic** | SQLite with FTS5 | Raw ingested documents, searchable by keyword |
 | **Semantic** | Qdrant + local embeddings | Vector search over `brain/` and ingested content |
 | **Procedural** | `skills/` directory | Versioned skill definitions, schemas, and verifiers |
-| **Audit** | JSONL files | Immutable action log for compliance and debugging |
+| **Audit** | Hash-chained JSONL | Immutable, verifiable action log for compliance and debugging |
 
 Bootstrap seeds all Markdown/YAML files under `brain/` into semantic memory. Use `make ingest` or `spa ingest` to add new content from `inbox/`.
 
@@ -147,8 +152,8 @@ Bootstrap seeds all Markdown/YAML files under `brain/` into semantic memory. Use
 | **A1** | local_draft | none | write local Markdown, create git branch, workspace drafts |
 | **A2** | external_draft | notify | draft PR body files, AI-Proposed ticket JSON |
 | **A3** | human_workflow | **CPO required** | assign human, raise priority, terminal ticket state |
-| **A4** | authoritative_record | **CPO required** | merge PR, publish policy, GRC write |
-| **A5** | high_risk | **blocked** | prod IAM changes, delete audit logs, risk acceptance |
+| **A4** | authoritative_record | **CPO required** | merge PR, publish policy, GRC write, memory forget |
+| **A5** | high_risk | **blocked** | prod IAM changes, delete audit logs, risk acceptance, unknown tools |
 
 A3+ actions create a Change Proposal Object in `governance/approval-queue/` and block until you approve them via the CLI.
 
@@ -174,15 +179,15 @@ Optional:
 Use a plain, writable path. Avoid iCloud-synced folders (Desktop, Documents) on macOS.
 
 ```bash
-git clone <your-fork-url> personal-grc-agent
-cd personal-grc-agent
+git clone https://github.com/wcbot0/Personal-GRC-Agent.git
+cd Personal-GRC-Agent
 ```
 
 If you rename or move the repo after cloning, re-run `./bootstrap.sh` — it detects stale virtualenv paths and recreates them automatically.
 
 ### 2. Verify write access (macOS)
 
-SPA writes runtime state to `governance/audit-logs/` and `workspace/.data/`. macOS **Transparency, Consent, and Control (TCC)** can block writes even when Unix permissions look correct.
+PGA writes runtime state to `governance/audit-logs/` and `workspace/.data/`. macOS **Transparency, Consent, and Control (TCC)** can block writes even when Unix permissions look correct.
 
 ```bash
 echo test > governance/audit-logs/_t.tmp && rm governance/audit-logs/_t.tmp
@@ -221,9 +226,10 @@ make seed
 ### 4. Verify installation
 
 ```bash
-make selftest          # 6/6 tests should pass
+make selftest          # health checks should pass
 spa --help             # CLI is available
 spa proposals list     # approval queue (may be empty)
+spa audit verify       # verify hash chain (empty chain is valid on fresh install)
 ```
 
 ### 5. Configure environment (optional)
@@ -254,6 +260,8 @@ All runtime settings live in `.env` (never commit this file):
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `SPA_RUNTIME` | `hermes` | Agent runtime identifier |
+| `SPA_DATA_DIR` | `workspace/.data` | SQLite, Qdrant client state, proposals root override |
+| `SPA_AUDIT_DIR` | `governance/audit-logs` | Audit JSONL log directory override |
 | `LLM_PROVIDER` | `openai` | LLM backend for Hermes sessions |
 | `LLM_API_BASE` | `https://api.openai.com/v1` | OpenAI-compatible API endpoint |
 | `LLM_API_KEY` | _(empty)_ | Your LLM API key |
@@ -268,15 +276,16 @@ All runtime settings live in `.env` (never commit this file):
 Agent behavior is further defined in:
 
 - `agent/charter.md` — persona, principles, draft surfaces
-- `agent/autonomy-policy.yaml` — action-risk gates and tool mappings
+- `agent/autonomy-policy.yaml` — action-risk gates, tool mappings, `unknown_tool_class`, connector `live_writes`
 - `agent/runtime.config.yaml` — runtime swap config (Hermes default)
+- `governance/retention-policy.yaml` — audit/CPO/eval retention and backup policy
 - `mcp/*.json` — MCP server configs for Hermes (vendor configs ship as `.disabled`)
 
 ---
 
 ## Skills and use cases
 
-SPA ships six MVP skills. Each skill writes artifacts to `workspace/drafts/` or `workspace/proposals/` and passes output through schema + rubric verifiers.
+PGA ships six MVP skills. Each skill writes artifacts to `workspace/drafts/` or `workspace/proposals/` and passes output through schema + rubric verifiers. All skill file writes route through `ToolGuard`.
 
 ### `meeting-synth`
 
@@ -295,7 +304,7 @@ SPA ships six MVP skills. Each skill writes artifacts to `workspace/drafts/` or 
 spa run-skill meeting-synth --input evals/fixtures/meeting_sample.md
 ```
 
-**Example scenario:** Your steering committee approved quarterly access reviews and flagged stale IAM roles. SPA extracts decisions, risks, and action items, then proposes unassigned tickets tagged to relevant controls.
+**Example scenario:** Your steering committee approved quarterly access reviews and flagged stale IAM roles. PGA extracts decisions, risks, and action items, then proposes unassigned tickets tagged to relevant controls.
 
 ---
 
@@ -313,7 +322,7 @@ spa run-skill meeting-synth --input evals/fixtures/meeting_sample.md
 spa run-skill ticket-draft --input evals/fixtures/ticket_input.md
 ```
 
-**Example scenario:** A penetration test finding maps to CC6.1. SPA drafts a ticket proposal you review before creating it in Linear/Jira (post-MVP).
+**Example scenario:** A penetration test finding maps to CC6.1. PGA drafts a ticket proposal you review before creating it in Linear/Jira (post-MVP).
 
 ---
 
@@ -333,7 +342,7 @@ spa run-skill ticket-draft --input evals/fixtures/ticket_input.md
 spa run-skill policy-redline --input evals/fixtures/policy_change.md
 ```
 
-**Example scenario:** Steering decided to require MFA for all admin access. SPA produces a redline diff and draft PR body for your review — it does **not** merge or publish.
+**Example scenario:** Steering decided to require MFA for all admin access. PGA produces a redline diff and draft PR body for your review — it does **not** merge or publish.
 
 ---
 
@@ -351,7 +360,7 @@ spa run-skill policy-redline --input evals/fixtures/policy_change.md
 spa run-skill csf-crosswalk --input evals/fixtures/crosswalk_input.md
 ```
 
-**Example scenario:** A new SaaS vendor questionnaire arrives. SPA crosswalks their claimed controls against your CSF/SOC2 baseline and highlights gaps.
+**Example scenario:** A new SaaS vendor questionnaire arrives. PGA crosswalks their claimed controls against your CSF/SOC2 baseline and highlights gaps.
 
 ---
 
@@ -369,7 +378,7 @@ spa run-skill csf-crosswalk --input evals/fixtures/crosswalk_input.md
 spa run-skill daily-brief --input evals/fixtures/daily_brief_context.md
 ```
 
-**Example scenario:** Monday morning — SPA summarizes three pending ticket assignments awaiting approval and two policy redlines in review.
+**Example scenario:** Monday morning — PGA summarizes three pending ticket assignments awaiting approval and two policy redlines in review.
 
 ---
 
@@ -387,7 +396,7 @@ spa run-skill daily-brief --input evals/fixtures/daily_brief_context.md
 spa run-skill evidence-pack --input evals/fixtures/evidence_pack_input.md
 ```
 
-**Example scenario:** SOC 2 audit is in six weeks. SPA drafts an evidence index for CC6.1 (logical access) covering Q1–Q2, listing expected artifacts and collection status.
+**Example scenario:** SOC 2 audit is in six weeks. PGA drafts an evidence index for CC6.1 (logical access) covering Q1–Q2, listing expected artifacts and collection status.
 
 ---
 
@@ -404,10 +413,11 @@ spa ingest inbox/my-meeting-notes.md
 ```
 
 Ingest will:
-1. Redact secrets/PII and write to episodic + semantic memory
-2. Auto-detect meeting content and run `meeting-synth`
+1. Redact secrets/PII and write to episodic + semantic memory (via guarded writes)
+2. Auto-detect meeting content and run `meeting-synth` on **redacted** content
 3. Generate ticket proposal files for each proposed ticket
 4. Auto-trigger `policy-redline` if action items mention policy/MFA changes
+5. Emit `ingest_complete` (or `ingest_failed` on error) after all downstream skills finish
 
 ### Run a skill directly
 
@@ -436,6 +446,23 @@ make show ID=cpo-<uuid>
 make approve ID=cpo-<uuid>
 make reject ID=cpo-<uuid> REASON="Not ready for production"
 ```
+
+### Verify audit integrity and export evidence
+
+```bash
+# Verify hash chain (optionally filter by date)
+spa audit verify
+spa audit verify --from 2026-01-01 --to 2026-12-31
+spa audit verify --require-full-chain   # fail if legacy events without hashes exist
+
+# Export auditor-ready bundle (tar.gz with manifest + SHA-256 file list)
+spa evidence export --output /tmp/pga-evidence.tar.gz
+spa evidence export --from 2026-01-01 --to 2026-06-30 --output ./audit-bundle.tar.gz
+```
+
+Bundles include filtered audit logs, CPO queue entries, policy snapshots, latest M3 eval report, and a self-referential manifest with file hashes. Export refuses to run if the full audit chain fails verification (use `--force` to override).
+
+Daily backups (including evidence export) are defined in `governance/retention-policy.yaml` and run via `scripts/backup.sh`.
 
 ### Populate your Security Brain
 
@@ -473,7 +500,7 @@ Swap runtimes by editing `agent/runtime.config.yaml` — skills and brain conten
 
 ### Change Proposal Objects (CPOs)
 
-When SPA attempts an A3+ action, it creates a CPO in `governance/approval-queue/`:
+When PGA attempts an A3+ action, it creates a CPO in `governance/approval-queue/`:
 
 ```json
 {
@@ -483,11 +510,25 @@ When SPA attempts an A3+ action, it creates a CPO in `governance/approval-queue/
   "action_type": "assign_human",
   "title": "Assign ticket to Alice",
   "proposed_change": { "assignee": "alice" },
-  "control_tags": ["CC6.1"]
+  "control_tags": ["CC6.1"],
+  "created_audit_event_id": "evt-..."
 }
 ```
 
-Approve via CLI; execution runs only after approval. Rejected CPOs remain in the queue for audit.
+Approve via CLI; execution runs only after approval. The approved CPO's `action_type` must match the tool being executed (prevents cross-action CPO reuse). Rejected CPOs remain in the queue for audit.
+
+Supported CPO execution paths include `assign_human`, `memory_forget`, `memory_forget_tag`, and `skill_verifier_escalation`.
+
+### Tool enforcement
+
+| Mechanism | Behavior |
+|-----------|----------|
+| **`ToolGuard`** | Classifies every tool call; blocks A5; requires approved CPO for A3/A4 |
+| **`guarded_write()`** | Central entry point for memory, skill artifacts, and connector writes |
+| **`unknown_tool_class: A5`** | Unmapped tools in `autonomy-policy.yaml` are blocked, not silently allowed |
+| **`live_writes`** | Connector registry refuses vendor providers when live writes are disabled in policy |
+| **Verifier gate** | Failed verifiers block artifact writes and escalate to CPO on second failure |
+| **`audit_outputs`** | Slim audit payloads for memory/ticket/GRC writes — no document bodies in logs |
 
 ### Redaction
 
@@ -497,19 +538,52 @@ Before any write to memory or audit logs, content passes through `governance/red
 - SSNs and email addresses
 - Custom denylist terms
 
-### Audit logs
+Ingest reads the original file, redacts before persistence, and passes redacted content to downstream skills.
 
-Every action appends to `governance/audit-logs/YYYY-MM-DD.jsonl`:
+### Hash-chained audit logs
+
+Every action appends to `governance/audit-logs/YYYY-MM-DD.jsonl`. Events include provenance and tamper-evidence fields:
 
 ```json
 {
-  "event_id": "...",
-  "run_id": "...",
-  "action": "skill_complete",
+  "event_id": "evt-...",
+  "run_id": "run-...",
+  "timestamp": "2026-06-05T12:00:00+00:00",
+  "event_type": "skill_complete",
+  "task_class": "skill",
   "risk_class": "A1",
   "tools_called": ["skill:meeting-synth"],
-  "outputs": { "artifact": "workspace/drafts/meeting-synth/..." }
+  "preview": "skill=meeting-synth chars=1234",
+  "prev_event_hash": "abc123...",
+  "event_hash": "def456...",
+  "policy_version": "1.0",
+  "model_id": "stub",
+  "runtime": "local"
 }
+```
+
+Verify integrity with `spa audit verify`. Legacy events without hash fields are tolerated with warnings; new events always chain.
+
+### Retention and backup
+
+`governance/retention-policy.yaml` defines:
+
+| Artifact | Retention | Notes |
+|----------|-----------|-------|
+| Audit logs | 7 years | Append-only; deletion is A5 |
+| CPO queue | Indefinite | All statuses retained |
+| M3 eval history | 90 days | Archived via evidence export |
+
+Run `scripts/backup.sh` for scheduled backup of drafts, proposals, audit logs, approval queue, and daily evidence export.
+
+### Prompt-injection redteam
+
+A 30-case corpus in `governance/prompt-injection-tests/corpus.jsonl` tests ingest and skill boundaries:
+
+```bash
+make redteam
+# or
+./scripts/redteam.sh
 ```
 
 ---
@@ -521,16 +595,16 @@ Every action appends to `governance/audit-logs/YYYY-MM-DD.jsonl`:
 | `agent/` | Charter, identity, autonomy policy, runtime config |
 | `brain/` | Git-backed Security Brain (Markdown/YAML) |
 | `skills/` | Versioned drafting skills + output schemas + verifiers |
-| `spa/` | Python package — CLI, memory, governance, skill runner |
+| `spa/` | Python package — CLI, memory, governance, skill runner, audit chain, evidence export |
 | `connectors/` | Ticket/GRC/notes interfaces + vendor stubs (disabled) |
-| `governance/` | Redaction rules, audit logs, approval queue, redteam corpus |
-| `evals/` | Golden fixtures, rubrics, and `run_evals.py` harness |
+| `governance/` | Redaction rules, audit logs, approval queue, redteam corpus, retention policy, eval history |
+| `evals/` | Golden fixtures, rubrics, and `run_evals.py` harness (includes M3 verifier metrics) |
 | `mcp/` | MCP server configs (vendor configs ship as `.disabled`) |
 | `inbox/` | Drop zone for files to ingest |
 | `workspace/drafts/` | Generated skill output artifacts |
 | `workspace/proposals/` | Ticket proposals and policy redlines |
-| `scripts/` | Bootstrap helpers, seed, redteam, new-skill scaffold |
-| `tests/` | Unit and integration tests |
+| `scripts/` | Bootstrap helpers, seed, redteam, backup, new-skill scaffold |
+| `tests/` | Unit and integration tests (enforcement, audit chain, ingest e2e) |
 
 ---
 
@@ -540,9 +614,9 @@ Every action appends to `governance/audit-logs/YYYY-MM-DD.jsonl`:
 
 ```bash
 make help            # all available targets
-make selftest        # health / milestone checks (6 tests)
-make eval            # golden-fixture skill evals
-make redteam         # prompt-injection corpus
+make selftest        # health / milestone checks
+make eval            # golden-fixture skill evals (+ M3 metrics → governance/eval-history/)
+make redteam         # 30-case prompt-injection corpus
 make lint            # policy-lint + secret-scan
 make policy-lint     # validate autonomy-policy + schemas
 make secret-scan     # scan repo for secrets
@@ -554,8 +628,9 @@ make clean           # remove venv and caches
 ### Run tests
 
 ```bash
-pytest tests/ -v
+pytest tests/ -v     # 40+ unit/integration tests
 make eval
+spa audit verify     # after evals generate audit events locally
 ```
 
 ### Scaffold a new skill
@@ -564,7 +639,7 @@ make eval
 ./scripts/new-skill.sh my-new-skill
 ```
 
-Then implement the Python module in `spa/skills/my_new_skill.py` and register it in `spa/skills/runner.py`.
+Then implement the Python module in `spa/skills/my_new_skill.py`, register it in `spa/skills/runner.py`, and add tool mappings to `agent/autonomy-policy.yaml`.
 
 ### Add a connector (post-MVP)
 
@@ -572,7 +647,8 @@ Then implement the Python module in `spa/skills/my_new_skill.py` and register it
 2. Add a provider under `connectors/<type>/<vendor>/`
 3. Register in `connectors/registry.py`
 4. Set `TICKET_PROVIDER` or `GRC_PROVIDER` in `.env`
-5. Enable the matching `mcp/*.json.disabled` config
+5. Enable `live_writes` for the connector type in `agent/autonomy-policy.yaml`
+6. Enable the matching `mcp/*.json.disabled` config
 
 ---
 
@@ -581,7 +657,7 @@ Then implement the Python module in `spa/skills/my_new_skill.py` and register it
 1. **Use this repo as a template** (GitHub "Use this template") or mirror to your org.
 2. **Private fork** — add org policies, real `brain/` content, and `.env` secrets (never commit `.env`).
 3. **Update CODEOWNERS** — replace placeholder handles with your team.
-4. **Enable connectors post-MVP** — set provider env vars, rename `mcp/*.json.disabled` → `mcp/*.json`, implement live adapters.
+4. **Enable connectors post-MVP** — set provider env vars, enable `live_writes`, rename `mcp/*.json.disabled` → `mcp/*.json`, implement live adapters.
 5. **Strip before public sharing** — remove private brain content, audit logs, approval queue entries, and workspace state.
 
 ---
@@ -593,9 +669,11 @@ GitHub Actions workflows:
 | Workflow | Purpose |
 |----------|---------|
 | `policy-lint` | Validates `autonomy-policy.yaml` and JSON schemas |
-| `skill-tests` | Runs pytest and golden-fixture evals |
+| `skill-tests` | Runs pytest, golden-fixture evals, uploads M3 eval history, verifies audit hash chain |
 | `secret-scan` | Scans for committed secrets |
-| `redteam` | Runs prompt-injection test corpus |
+| `redteam` | Runs 30-case prompt-injection test corpus |
+
+The `skill-tests` workflow sets `SPA_DATA_DIR` and `SPA_AUDIT_DIR` at the job level so eval-generated audit logs are verified with `spa audit verify` before merge.
 
 ---
 
