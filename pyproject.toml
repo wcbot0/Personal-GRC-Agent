@@ -25,7 +25,7 @@ spa = "spa.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["spa*"]
+include = ["spa*", "connectors*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

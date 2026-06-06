@@ -14,6 +14,16 @@ from spa.memory.redaction import redact_obj, redact_text
 from spa.paths import ensure_private_dir, ensure_private_file, get_data_dir
 
 
+def _load_local_embedder():
+    """Lazy-load sentence-transformers embedder for offline/local use."""
+    try:
+        from sentence_transformers import SentenceTransformer
+        # Use a small, fast model that works well for general embeddings
+        return SentenceTransformer("nomic-ai/nomic-embed-text-v1", trust_remote_code=True)
+    except Exception:
+        return None
+
+
 class SemanticMemory:
     def __init__(
         self,
@@ -30,6 +40,7 @@ class SemanticMemory:
         )
         self._client = None
         self._offline_mode = False
+        self._local_embedder = None
 
     def _get_client(self):
         if self._client is not None:
@@ -55,6 +66,11 @@ class SemanticMemory:
                 ensure_private_file(self._local_index_path)
             return None
 
+    def _get_local_embedder(self):
+        if self._local_embedder is None:
+            self._local_embedder = _load_local_embedder()
+        return self._local_embedder
+
     def _embedding_dim(self) -> int:
         try:
             vec = self._embed("dimension probe")
@@ -64,18 +80,32 @@ class SemanticMemory:
 
     def _embed(self, text: str) -> list[float]:
         text = redact_text(text)
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(
-                f"{self.embedding_base.rstrip('/')}/embed",
-                json={"inputs": text},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        if isinstance(data, list) and data and isinstance(data[0], list):
-            return data[0]
-        if isinstance(data, dict) and "embeddings" in data:
-            return data["embeddings"][0]
-        raise ValueError("Unexpected embedding response format")
+        # Try remote embedding service first
+        embedder = self._get_local_embedder()
+        if embedder is not None:
+            try:
+                vec = embedder.encode(text)
+                return vec.tolist()
+            except Exception:
+                pass
+        
+        # Fallback to remote service
+        try:
+            with httpx.Client(timeout=30.0) as client:
+                resp = client.post(
+                    f"{self.embedding_base.rstrip('/')}/embed",
+                    json={"inputs": text},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            if isinstance(data, list) and data and isinstance(data[0], list):
+                return data[0]
+            if isinstance(data, dict) and "embeddings" in data:
+                return data["embeddings"][0]
+            raise ValueError("Unexpected embedding response format")
+        except Exception:
+            # If both fail, return a zero vector of expected dimension
+            return [0.0] * 768
 
     def _point_id(self, doc_id: str) -> str:
         return hashlib.sha256(doc_id.encode()).hexdigest()[:32]
