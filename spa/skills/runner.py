@@ -9,7 +9,7 @@ from typing import Any
 
 from spa.audit.logger import AuditLogger
 from spa.governance.approval_queue import ApprovalQueue
-from spa.paths import ROOT, SKILLS_DIR, WORKSPACE_DIR
+from spa.paths import ROOT, SKILLS_DIR, get_drafts_dir
 from spa.skills.verifiers import run_verifiers
 from spa.tools.guard import ToolGuard
 
@@ -42,7 +42,7 @@ def run_skill(
     audit = audit or AuditLogger()
     guard = ToolGuard(audit=audit)
     input_path = Path(input_path)
-    out_dir = Path(output_dir) if output_dir else WORKSPACE_DIR / "drafts" / skill_name
+    out_dir = Path(output_dir) if output_dir else get_drafts_dir() / skill_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     guard.execute(
