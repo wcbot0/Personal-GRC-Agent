@@ -9,8 +9,8 @@ jobs:
   skill-tests:
     runs-on: ubuntu-latest
     env:
-      SPA_DATA_DIR: ${{ runner.temp }}/spa_data
-      SPA_AUDIT_DIR: ${{ runner.temp }}/spa_audit
+      SPA_DATA_DIR: /tmp/spa_data
+      SPA_AUDIT_DIR: /tmp/spa_audit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
