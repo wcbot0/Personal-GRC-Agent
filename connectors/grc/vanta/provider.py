@@ -10,7 +10,7 @@ _DISABLED = disabled_post_mvp_message("vanta", "GRC_PROVIDER")
 
 
 class VantaGrcProvider(GrcConnector):
-    def __init__(self) -> None:
+    def __init__(self, guard=None) -> None:
         super().__init__(
             provider="vanta",
             enabled=False,

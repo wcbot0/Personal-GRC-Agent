@@ -11,6 +11,7 @@ from connectors.grc.none.provider import NoneGrcProvider
 from connectors.grc.secureframe.provider import SecureframeGrcProvider
 from connectors.grc.vanta.provider import VantaGrcProvider
 from connectors.registry import (
+    LiveWriteDisabledError,
     POST_MVP_ENABLE_MSG,
     get_grc_provider,
     get_ticket_provider,
@@ -106,9 +107,8 @@ def test_vendor_stubs_not_selected_by_default(monkeypatch):
 
 def test_provider_swap_is_config_only(monkeypatch):
     monkeypatch.setenv("TICKET_PROVIDER", "linear")
-    linear = get_ticket_provider()
-    assert linear.provider == "linear"
-    assert linear.enabled is False
+    with pytest.raises(LiveWriteDisabledError):
+        get_ticket_provider()
     monkeypatch.setenv("TICKET_PROVIDER", "none")
     none = get_ticket_provider()
     assert none.__class__ is NoneTicketProvider
@@ -116,9 +116,5 @@ def test_provider_swap_is_config_only(monkeypatch):
 
 def test_linear_selected_is_no_op_with_post_mvp_message(monkeypatch):
     monkeypatch.setenv("TICKET_PROVIDER", "linear")
-    provider = get_ticket_provider()
-    assert provider.enabled is False
-    with pytest.raises(RuntimeError, match="post-MVP") as exc:
-        provider.create_draft({"id": "L-1", "title": "Should not write"})
-    assert "TICKET_PROVIDER=none" in str(exc.value)
-    assert POST_MVP_ENABLE_MSG.format(name="linear", env_var="TICKET_PROVIDER") in str(exc.value)
+    with pytest.raises(LiveWriteDisabledError):
+        get_ticket_provider()

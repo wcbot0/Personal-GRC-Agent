@@ -1,0 +1,28 @@
+version: "1.0"
+description: Retention and immutability policy for SPA runtime artifacts.
+
+audit_logs:
+  location: governance/audit-logs/
+  retention_years: 7
+  append_only: true
+  deletion_class: A5
+  verification: spa audit verify
+
+cpo_queue:
+  location: governance/approval-queue/
+  retention: indefinite
+  include_status: [pending, approved, rejected]
+
+eval_history:
+  location: governance/eval-history/
+  retention_days: 90
+  archive_via: spa evidence export
+
+backup:
+  script: scripts/backup.sh
+  includes:
+    - workspace/drafts
+    - workspace/proposals
+    - governance/audit-logs
+    - governance/approval-queue
+  evidence_export: daily

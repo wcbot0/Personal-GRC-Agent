@@ -77,6 +77,12 @@ class ToolGuard:
                     f"Tool '{tool_name}' blocked — CPO {cpo_id} not approved",
                     cpo_id=cpo_id,
                 )
+            cpo = self.queue.get(cpo_id)
+            if cpo.get("action_type") != tool_name:
+                raise ToolBlockedError(
+                    f"Tool '{tool_name}' blocked — CPO {cpo_id} is for action_type {cpo.get('action_type')}",
+                    cpo_id=cpo_id,
+                )
             ctx.cpo_id = cpo_id
 
         return ctx
@@ -90,9 +96,21 @@ class ToolGuard:
         create_cpo: Callable[[], dict[str, Any]] | None = None,
         preview: str | None = None,
         task_class: str = "tool",
+        audit_outputs: Callable[[Any], Any] | None = None,
     ) -> Any:
         ctx = self.check_allowed(tool_name, cpo_id=cpo_id, create_cpo=create_cpo)
         action_class = ctx.action_class or "A0"
+
+        if self.policy.approval_mode(action_class) == "notify":
+            self.audit.emit(
+                "tool_notify",
+                task_class=task_class,
+                risk_class=action_class,
+                tools_called=[tool_name],
+                preview=preview,
+                metadata={"notify": True},
+            )
+
         self.audit.emit(
             "tool_preview" if preview else "tool_start",
             task_class=task_class,
@@ -103,12 +121,13 @@ class ToolGuard:
             preview=preview,
         )
         result = fn()
+        logged = audit_outputs(result) if audit_outputs else result
         self.audit.emit(
             "tool_complete",
             task_class=task_class,
             risk_class=action_class,
             tools_called=[tool_name],
             cpo_id=ctx.cpo_id,
-            outputs=result if isinstance(result, (dict, list, str)) else str(result),
+            outputs=logged if isinstance(logged, (dict, list, str)) else str(logged),
         )
         return result

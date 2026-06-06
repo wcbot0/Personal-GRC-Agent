@@ -10,7 +10,7 @@ _DISABLED = disabled_post_mvp_message("secureframe", "GRC_PROVIDER")
 
 
 class SecureframeGrcProvider(GrcConnector):
-    def __init__(self) -> None:
+    def __init__(self, guard=None) -> None:
         super().__init__(
             provider="secureframe",
             enabled=False,

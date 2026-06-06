@@ -28,8 +28,7 @@ def _extract_bullets(text: str, keywords: list[str]) -> list[str]:
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    out_dir = resolve_output_dir(context)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    resolve_output_dir(context)
 
     decisions = _extract_bullets(content, ["decided", "decision", "agreed", "approved"])
     risks = _extract_bullets(content, ["risk", "concern", "blocker", "gap"])
@@ -59,10 +58,6 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
             "control_tags": ["CSF:ID.AM", "SOC2:CC3.2", "SOC2:CC6.1"],
         }
         tickets.append(ticket)
-        ticket_path = out_dir / f"ticket-proposal-{i:03d}.json"
-        import json
-
-        ticket_path.write_text(json.dumps(ticket, indent=2), encoding="utf-8")
 
     return {
         "skill": "meeting-synth",
@@ -71,5 +66,5 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         "action_items": actions,
         "proposed_tickets": tickets,
         "control_tags": ["CSF:ID.AM", "CSF:DE.AE", "SOC2:CC3.2", "SOC2:CC6.1", "800-53:RA-5"],
-        "ticket_files": [str(p.name) for p in sorted(out_dir.glob("ticket-proposal-*.json"))],
+        "ticket_files": [],
     }

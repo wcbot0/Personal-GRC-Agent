@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from spa.paths import rel_to_repo, resolve_output_dir
+from spa.skills.io import write_text_file
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -34,7 +35,7 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
 - CSF: PR.AC
 - 800-53: AC-2
 """
-    index_path.write_text(index_md, encoding="utf-8")
+    write_text_file(context, "write_local_markdown", index_path, index_md)
     return {
         "skill": "evidence-pack",
         "control_id": control_id,

@@ -16,8 +16,10 @@ class PolicyError(Exception):
 class AutonomyPolicy:
     def __init__(self, data: dict[str, Any]) -> None:
         self.data = data
+        self.defaults: dict[str, Any] = data.get("defaults", {})
         self.tool_mappings: dict[str, str] = data.get("tool_mappings", {})
         self.action_classes: dict[str, dict[str, Any]] = data.get("action_classes", {})
+        self.connectors: dict[str, Any] = data.get("connectors", {})
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -27,8 +29,18 @@ class AutonomyPolicy:
         data = yaml.safe_load(AUTONOMY_POLICY.read_text())
         return cls(data)
 
+    @classmethod
+    def clear_cache(cls) -> None:
+        cls.load.cache_clear()
+
+    @property
+    def version(self) -> str:
+        return str(self.data.get("version", "0.0"))
+
     def classify_tool(self, tool_name: str) -> str:
-        return self.tool_mappings.get(tool_name, "A1")
+        if tool_name in self.tool_mappings:
+            return self.tool_mappings[tool_name]
+        return str(self.defaults.get("unknown_tool_class", "A1"))
 
     def requires_approval(self, action_class: str) -> bool:
         cfg = self.action_classes.get(action_class, {})
@@ -44,3 +56,7 @@ class AutonomyPolicy:
 
     def approval_mode(self, action_class: str) -> str:
         return self.action_classes.get(action_class, {}).get("approval", "none")
+
+    def live_writes_enabled(self, connector_type: str) -> bool:
+        cfg = self.connectors.get(connector_type, {})
+        return bool(cfg.get("live_write_enabled", False))

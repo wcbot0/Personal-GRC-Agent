@@ -10,7 +10,7 @@ _DISABLED = disabled_post_mvp_message("linear", "TICKET_PROVIDER")
 
 
 class LinearTicketProvider(TicketConnector):
-    def __init__(self) -> None:
+    def __init__(self, guard=None) -> None:
         super().__init__(
             provider="linear",
             enabled=False,

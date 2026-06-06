@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from spa.paths import APPROVAL_QUEUE_DIR, get_audit_logs_dir, get_proposals_dir, resolve_output_dir
+from spa.skills.io import write_text_file
 
 
 def _list_pending_cpos(queue_dir: Path) -> list[dict[str, Any]]:
@@ -54,7 +55,7 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     out_dir = resolve_output_dir(context)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"daily-brief-{datetime.now(timezone.utc).strftime('%Y%m%d')}.md"
-    path.write_text(brief_md, encoding="utf-8")
+    write_text_file(context, "write_local_markdown", path, brief_md)
 
     return {
         "skill": "daily-brief",

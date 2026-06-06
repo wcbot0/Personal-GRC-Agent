@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from spa.paths import resolve_output_dir
+from spa.skills.io import write_text_file
+
+if TYPE_CHECKING:
+    from spa.tools.guard import ToolGuard
 
 
-def create_proposal(ticket: dict[str, Any]) -> dict[str, Any]:
+def create_proposal(ticket: dict[str, Any], guard: "ToolGuard | None" = None) -> dict[str, Any]:
     """Persist an AI-proposed ticket via the configured ticket provider (file-only in MVP)."""
     from connectors.registry import get_ticket_provider
 
@@ -23,12 +27,11 @@ def create_proposal(ticket: dict[str, Any]) -> dict[str, Any]:
         f"Suggested owner: {owner}\n\n{rationale}",
     )
     record.setdefault("control_tags", ["CSF:PR.IP", "SOC2:CC8.1", "800-53:CM-3"])
-    return get_ticket_provider().create_draft(record)
+    return get_ticket_provider(guard=guard).create_draft(record)
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     out_dir = resolve_output_dir(context)
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     title_match = re.search(r"(?im)^#\s+(.+)$", content)
     title = title_match.group(1).strip() if title_match else "AI-Proposed security task"
@@ -60,7 +63,7 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
 
     ticket_id = record.get("id", "ai-proposed").replace("/", "-")
     path = out_dir / f"ticket-proposal-{ticket_id}.json"
-    path.write_text(json.dumps(record, indent=2), encoding="utf-8")
+    write_text_file(context, "create_ticket_draft", path, json.dumps(record, indent=2))
 
     return {
         "skill": "ticket-draft",

@@ -45,7 +45,17 @@
       }
     },
     "preview": { "type": ["string", "null"] },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "prev_event_hash": { "type": ["string", "null"] },
+    "event_hash": { "type": ["string", "null"] },
+    "policy_version": { "type": ["string", "null"] },
+    "input_sha256": { "type": ["string", "null"] },
+    "artifact_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "model_id": { "type": ["string", "null"] },
+    "runtime": { "type": ["string", "null"] }
   },
   "additionalProperties": true
 }

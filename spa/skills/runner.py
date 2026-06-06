@@ -1,6 +1,7 @@
 """Execute drafting skills with verifiers and audit emission."""
 from __future__ import annotations
 
+import hashlib
 import importlib
 import json
 from datetime import datetime, timezone
@@ -8,10 +9,17 @@ from pathlib import Path
 from typing import Any
 
 from spa.audit.logger import AuditLogger
-from spa.governance.approval_queue import ApprovalQueue
-from spa.paths import ROOT, SKILLS_DIR, get_drafts_dir
+from spa.paths import ROOT, get_drafts_dir
 from spa.skills.verifiers import run_verifiers
 from spa.tools.guard import ToolGuard
+from spa.tools.write import guarded_write
+
+
+class VerifierFailedError(Exception):
+    def __init__(self, message: str, *, cpo_id: str | None = None, verifications: list | None = None) -> None:
+        super().__init__(message)
+        self.cpo_id = cpo_id
+        self.verifications = verifications or []
 
 
 SKILL_MODULES = {
@@ -32,18 +40,24 @@ def _load_skill_fn(skill_name: str):
     return mod.run
 
 
+def _input_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def run_skill(
     skill_name: str,
     input_path: str | Path,
     *,
     output_dir: str | Path | None = None,
     audit: AuditLogger | None = None,
+    guard: ToolGuard | None = None,
 ) -> dict[str, Any]:
     audit = audit or AuditLogger()
-    guard = ToolGuard(audit=audit)
+    guard = guard or ToolGuard(audit=audit)
     input_path = Path(input_path)
     out_dir = Path(output_dir) if output_dir else get_drafts_dir() / skill_name
     out_dir.mkdir(parents=True, exist_ok=True)
+    input_hash = _input_sha256(input_path)
 
     guard.execute(
         "write_draft_file",
@@ -53,7 +67,8 @@ def run_skill(
     )
 
     skill_fn = _load_skill_fn(skill_name)
-    output = skill_fn(input_path.read_text(encoding="utf-8"), context={"output_dir": out_dir})
+    context: dict[str, Any] = {"output_dir": out_dir, "guard": guard}
+    output = skill_fn(input_path.read_text(encoding="utf-8"), context=context)
 
     serialized = json.dumps(output, indent=2, default=str)
     audit.emit(
@@ -62,6 +77,7 @@ def run_skill(
         risk_class="A1",
         tools_called=[f"skill:{skill_name}"],
         preview=f"skill={skill_name} chars={len(serialized)}",
+        input_sha256=input_hash,
     )
 
     final_output, verifications = run_verifiers(
@@ -70,13 +86,13 @@ def run_skill(
         serialized,
         retry_fn=lambda: skill_fn(
             input_path.read_text(encoding="utf-8"),
-            context={"output_dir": out_dir, "retry": True},
+            context={**context, "retry": True},
         ),
     )
 
+    cpo_id: str | None = None
     if not all(v["passed"] for v in verifications):
-        queue = ApprovalQueue(audit=audit)
-        cpo = queue.create(
+        cpo = guard.queue.create(
             action_class="A3",
             action_type="skill_verifier_escalation",
             title=f"Verifier failure: {skill_name}",
@@ -85,18 +101,41 @@ def run_skill(
             proposed_change={"skill": skill_name, "verifications": verifications},
             control_tags=final_output.get("control_tags", []),
         )
+        cpo_id = cpo["id"]
+        audit.emit(
+            "skill_failed",
+            task_class="skill",
+            risk_class="A3",
+            approval_required=True,
+            cpo_id=cpo_id,
+            verifications=verifications,
+            input_sha256=input_hash,
+        )
         audit.emit(
             "skill_escalated",
             task_class="skill",
             risk_class="A3",
             approval_required=True,
-            cpo_id=cpo["id"],
+            cpo_id=cpo_id,
+            verifications=verifications,
+        )
+        raise VerifierFailedError(
+            f"{skill_name} verifiers failed after retry",
+            cpo_id=cpo_id,
             verifications=verifications,
         )
 
-    # Write artifacts
     artifact_path = out_dir / f"{skill_name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
-    artifact_path.write_text(json.dumps(final_output, indent=2), encoding="utf-8")
+
+    def _write_artifact() -> None:
+        artifact_path.write_text(json.dumps(final_output, indent=2), encoding="utf-8")
+
+    guarded_write(
+        guard,
+        "write_local_markdown",
+        _write_artifact,
+        preview=artifact_path.name,
+    )
 
     try:
         artifact_ref = str(artifact_path.relative_to(ROOT))
@@ -110,6 +149,8 @@ def run_skill(
         tools_called=[f"skill:{skill_name}"],
         outputs={"artifact": artifact_ref},
         verifications=verifications,
+        artifact_refs=[artifact_ref],
+        input_sha256=input_hash,
     )
     return {
         "skill": skill_name,

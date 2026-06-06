@@ -4,6 +4,7 @@ defaults:
   ticket_assignee: unassigned
   pr_mode: draft
   policy_write_path: brain/03-policies/proposals/
+  unknown_tool_class: A5
 
 action_classes:
   A0:
@@ -67,17 +68,28 @@ tool_mappings:
   read_file: A0
   search_memory: A0
   ingest_file: A0
+  memory_episodic_write: A0
+  memory_semantic_upsert: A0
   write_draft_file: A1
+  write_local_markdown: A1
+  write_workspace_draft: A1
   create_git_branch: A1
   create_cpo: A1
   create_draft_pr: A2
   create_ticket_draft: A2
+  create_grc_draft: A2
   assign_human: A3
   raise_priority: A3
   merge_pr: A4
   publish_policy: A4
   grc_write: A4
+  memory_forget: A4
+  memory_forget_tag: A4
   prod_iam_change: A5
+  delete_audit_logs: A5
+  secret_rotation: A5
+  risk_acceptance: A5
+  delete_evidence: A5
 
 connectors:
   ticket:
