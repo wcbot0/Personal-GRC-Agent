@@ -1,19 +1,32 @@
 """daily-brief: synthesize proposals, sessions, pending approvals."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-from spa.governance.approval_queue import ApprovalQueue
-from spa.paths import GOVERNANCE_DIR, WORKSPACE_DIR
+from spa.paths import APPROVAL_QUEUE_DIR, get_audit_logs_dir, get_proposals_dir, resolve_output_dir
+
+
+def _list_pending_cpos(queue_dir: Path) -> list[dict[str, Any]]:
+    if not queue_dir.exists():
+        return []
+    pending: list[dict[str, Any]] = []
+    for path in sorted(queue_dir.glob("cpo-*.json")):
+        cpo = json.loads(path.read_text(encoding="utf-8"))
+        if cpo.get("status") == "pending":
+            pending.append(cpo)
+    return pending
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    queue = ApprovalQueue()
-    pending = queue.list_proposals(status="pending")
+    pending = _list_pending_cpos(APPROVAL_QUEUE_DIR)
 
-    proposals = list((WORKSPACE_DIR / "proposals").glob("*.md")) if (WORKSPACE_DIR / "proposals").exists() else []
-    audit_logs = list(GOVERNANCE_DIR.joinpath("audit-logs").glob("audit-*.jsonl"))
+    proposals_dir = get_proposals_dir()
+    proposals = list(proposals_dir.glob("*.md")) if proposals_dir.exists() else []
+    audit_dir = get_audit_logs_dir()
+    audit_logs = list(audit_dir.glob("audit-*.jsonl")) if audit_dir.exists() else []
 
     brief_md = f"""# Daily Security Brief — {datetime.now(timezone.utc).date().isoformat()}
 
@@ -38,11 +51,10 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
 2. Triage AI-Proposed tickets in workspace/drafts/
 3. Run `make eval` if skill outputs drift
 """
-    out_dir = (context or {}).get("output_dir")
-    if out_dir:
-        out_dir.mkdir(parents=True, exist_ok=True)
-        path = out_dir / f"daily-brief-{datetime.now(timezone.utc).strftime('%Y%m%d')}.md"
-        path.write_text(brief_md, encoding="utf-8")
+    out_dir = resolve_output_dir(context)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"daily-brief-{datetime.now(timezone.utc).strftime('%Y%m%d')}.md"
+    path.write_text(brief_md, encoding="utf-8")
 
     return {
         "skill": "daily-brief",

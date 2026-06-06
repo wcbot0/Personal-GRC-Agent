@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -82,7 +83,20 @@ def score_output(skill: str, output: dict, verifications: list[dict]) -> list[st
     return errors
 
 
+def _ensure_isolated_state_paths() -> None:
+    """Point audit/data writes outside the repo tree unless already overridden."""
+    defaults = {
+        "SPA_DATA_DIR": "/tmp/spa_d",
+        "SPA_AUDIT_DIR": "/tmp/spa_a",
+    }
+    for key, path in defaults.items():
+        if key not in os.environ:
+            os.environ[key] = path
+        Path(os.environ[key]).mkdir(parents=True, exist_ok=True)
+
+
 def main() -> int:
+    _ensure_isolated_state_paths()
     all_errors: list[str] = []
     for skill, fixture in SKILLS.items():
         fixture_path = ROOT / fixture

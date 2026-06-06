@@ -3,7 +3,7 @@
 ## Summary
 Policy: access-control-policy
 
-Todo: Update access control policy redline with MFA requirement
+Add explicit MFA requirement for all privileged accounts and annual review of emergency break-glass accounts.
 
 ## Proposed changes
 - Clarify control ownership and review cadence

@@ -6,7 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from connectors.interfaces.ticket import TicketCapabilities, TicketConnector
-from spa.paths import WORKSPACE_DIR
+from spa.paths import get_proposals_dir
+
+
+
 
 
 class NoneTicketProvider(TicketConnector):
@@ -17,10 +20,11 @@ class NoneTicketProvider(TicketConnector):
             capabilities=TicketCapabilities(read=False, create_draft=True),
             gated_capabilities=["assign", "transition", "create_live"],
         )
-        self.out_dir = WORKSPACE_DIR / "proposals"
-        self.out_dir.mkdir(parents=True, exist_ok=True)
+        self.out_dir = get_proposals_dir() / "tickets"
 
     def read_tickets(self, query: str | None = None) -> list[dict[str, Any]]:
+        if not self.out_dir.exists():
+            return []
         tickets = []
         for path in self.out_dir.glob("*.json"):
             tickets.append(json.loads(path.read_text(encoding="utf-8")))
@@ -30,6 +34,7 @@ class NoneTicketProvider(TicketConnector):
         return tickets
 
     def create_draft(self, ticket: dict[str, Any]) -> dict[str, Any]:
+        self.out_dir.mkdir(parents=True, exist_ok=True)
         ticket = dict(ticket)
         ticket.setdefault("status", "ai_proposed")
         ticket.setdefault("assignee", "unassigned")
