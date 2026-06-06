@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import uuid
+from contextlib import suppress
 from typing import Any
 
 import httpx
 
 from spa.memory.redaction import redact_obj, redact_text
-from spa.paths import get_data_dir
+from spa.paths import ensure_private_dir, ensure_private_file, get_data_dir
 
 
 class SemanticMemory:
@@ -48,6 +50,9 @@ class SemanticMemory:
             self._offline_mode = True
             self._local_index_path = get_data_dir() / "semantic_fallback.jsonl"
             self._local_index_path.parent.mkdir(parents=True, exist_ok=True)
+            ensure_private_dir(self._local_index_path.parent)
+            if self._local_index_path.exists():
+                ensure_private_file(self._local_index_path)
             return None
 
     def _embedding_dim(self) -> int:
@@ -87,16 +92,20 @@ class SemanticMemory:
         memory_id = str(uuid.uuid5(uuid.NAMESPACE_URL, doc_id))
 
         if client is None or self._offline_mode:
-            import json
-
             entry = {
                 "id": memory_id,
                 "doc_id": doc_id,
                 "content": content,
                 "metadata": metadata,
             }
-            with self._local_index_path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(entry) + "\n")
+            entries = self._read_local_entries()
+            entries = [
+                existing
+                for existing in entries
+                if existing.get("id") != memory_id and existing.get("doc_id") != doc_id
+            ]
+            entries.append(entry)
+            self._write_local_entries(entries)
             return memory_id
 
         from qdrant_client.models import PointStruct
@@ -119,15 +128,38 @@ class SemanticMemory:
         )
         return memory_id
 
+    def _read_local_entries(self) -> list[dict[str, Any]]:
+        if not self._local_index_path.exists():
+            return []
+        entries: list[dict[str, Any]] = []
+        for line in self._local_index_path.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                entries.append(json.loads(line))
+        return entries
+
+    def _write_local_entries(self, entries: list[dict[str, Any]]) -> None:
+        payload = "".join(json.dumps(entry) + "\n" for entry in entries)
+        tmp_path = self._local_index_path.with_name(
+            f".{self._local_index_path.name}.{uuid.uuid4().hex}.tmp"
+        )
+        try:
+            tmp_path.touch(mode=0o600)
+            ensure_private_file(tmp_path)
+            tmp_path.write_text(payload, encoding="utf-8")
+            ensure_private_file(tmp_path)
+            tmp_path.replace(self._local_index_path)
+        finally:
+            with suppress(OSError):
+                if tmp_path.exists():
+                    tmp_path.unlink()
+        ensure_private_file(self._local_index_path)
+
     def query(self, text: str, limit: int = 5) -> list[dict[str, Any]]:
         client = self._get_client()
         if client is None or self._offline_mode:
-            import json
-
             results = []
             if hasattr(self, "_local_index_path") and self._local_index_path.exists():
-                for line in self._local_index_path.read_text(encoding="utf-8").splitlines():
-                    entry = json.loads(line)
+                for entry in self._read_local_entries():
                     if text.lower() in entry["content"].lower():
                         results.append(entry)
             return results[:limit]
@@ -156,17 +188,15 @@ class SemanticMemory:
         if client is None or self._offline_mode:
             if not hasattr(self, "_local_index_path") or not self._local_index_path.exists():
                 return False
-            import json
 
             kept = []
             removed = False
-            for line in self._local_index_path.read_text(encoding="utf-8").splitlines():
-                entry = json.loads(line)
+            for entry in self._read_local_entries():
                 if entry.get("id") == memory_id or entry.get("doc_id") == memory_id:
                     removed = True
                 else:
-                    kept.append(line)
-            self._local_index_path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+                    kept.append(entry)
+            self._write_local_entries(kept)
             return removed
 
         from qdrant_client.models import Filter, FieldCondition, MatchValue
@@ -182,20 +212,17 @@ class SemanticMemory:
     def forget_by_tag(self, tag: str) -> int:
         client = self._get_client()
         if client is None or self._offline_mode:
-            import json
-
             if not hasattr(self, "_local_index_path") or not self._local_index_path.exists():
                 return 0
             kept = []
             removed = 0
-            for line in self._local_index_path.read_text(encoding="utf-8").splitlines():
-                entry = json.loads(line)
+            for entry in self._read_local_entries():
                 tags = entry.get("metadata", {}).get("tags", [])
                 if tag in tags:
                     removed += 1
                 else:
-                    kept.append(line)
-            self._local_index_path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
+                    kept.append(entry)
+            self._write_local_entries(kept)
             return removed
 
         return 0
