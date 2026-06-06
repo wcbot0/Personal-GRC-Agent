@@ -1,0 +1,5 @@
+{
+  "name": "aws-security-audit",
+  "enabled": false,
+  "notes": "DISABLED in MVP — cloud findings ingestion deferred"
+}

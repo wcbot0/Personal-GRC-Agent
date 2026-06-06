@@ -1,0 +1,16 @@
+# Agent runtime configuration — swap runtime without changing skills/brain.
+runtime: hermes
+version: "0.1"
+
+hermes:
+  binary: hermes
+  mcp_config_dir: mcp/
+  skills_dir: skills/
+  charter: agent/charter.md
+  policy: agent/autonomy-policy.yaml
+
+# Alternative runtimes (post-MVP examples):
+# runtime: openclaw
+# openclaw:
+#   binary: openclaw-agent
+#   mcp_config_dir: mcp/

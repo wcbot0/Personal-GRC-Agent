@@ -1,0 +1,35 @@
+# Secrets and local state
+.env
+secrets/
+workspace/.data/
+governance/audit-logs/
+governance/approval-queue/
+inbox/*
+!inbox/.gitkeep
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+
+# Runtime workspace
+workspace/drafts/*
+!workspace/drafts/.gitkeep
+workspace/proposals/*
+!workspace/proposals/.gitkeep
+
+# Docker volumes (local bind mounts)
+data/

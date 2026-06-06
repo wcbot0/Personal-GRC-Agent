@@ -1,0 +1,8 @@
+agent_id: spa-local
+display_name: Security Personal Assistant
+persona: staff_security_grc_engineer
+default_branch_prefix: agent/
+commit_signing: optional
+git_author:
+  name: SPA Agent
+  email: spa-agent@localhost

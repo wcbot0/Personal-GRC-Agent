@@ -1,0 +1,6 @@
+{
+  "name": "slack",
+  "enabled": false,
+  "provider": "slack",
+  "notes": "DISABLED in MVP — comms ingestion deferred"
+}

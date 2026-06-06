@@ -1,0 +1,230 @@
+# Security Personal Assistant (SPA) — MVP Requirements & Build Plan
+
+**Status:** Handoff-ready for a coding agent
+**Owner:** (you) — Staff Security/GRC Engineer
+**Date:** 2026-06-05
+**License target:** MIT (public template) + private fork for org content
+
+---
+
+## 0. One-paragraph summary
+
+Build a **portable, GitHub-distributed, local-first agentic Security Personal Assistant** that ingests notes/transcripts, comms, tickets, and cloud findings, then **drafts** GRC artifacts (Linear tickets, policy PRs, control crosswalks, evidence packs). The agent operates **Draft-by-default, Approve-to-publish**: it can autonomously read and draft, but anything that creates an obligation for a human (assignment) or an authoritative record (publishing, merging, GRC writes) is gated behind explicit human approval. GRC-platform and ticket integrations are **adapter-based and disabled in MVP** (platform-agnostic). The unit of delivery is a **reproducible GitHub repo**: clone -> bootstrap -> run.
+
+---
+
+## 1. Goals & non-goals
+
+### 1.1 MVP goals
+- G1. Local-first memory (no cloud memory dependency): episodic + semantic + procedural + audit.
+- G2. Repo-first portability: clone + one bootstrap script -> working agent on Linux/WSL/macOS.
+- G3. Draft-only write surfaces in MVP: local files, agent-owned git branches, **Draft** PRs, **AI-Proposed unassigned** tickets (as files when no provider configured).
+- G4. Human-gated approval queue for all people-impacting / authoritative actions.
+- G5. Auditable by design: append-only JSONL audit log of prompts, retrieved context, tool calls, approvals, outputs.
+- G6. Governance-as-code: a single autonomy-policy.yaml defines all action-risk gates.
+- G7. Shareable: strip private content -> public template repo.
+
+### 1.2 Non-goals (explicitly deferred post-MVP)
+- N1. Writing to any GRC platform (Vanta/Drata/Secureframe) — adapter stubbed + disabled.
+- N2. Auto-assigning work to other humans (suggestions only).
+- N3. Auto-merging PRs, publishing policies, sending external comms.
+- N4. Production/cloud mutations (IAM, secrets, config) — blocked.
+- N5. Multi-user / multi-tenant operation.
+
+---
+
+## 2. Assumptions (stated)
+- A1. Single-user, always-on Linux/WSL box; Docker available.
+- A2. Default runtime: **Hermes Agent** (MIT, local, MCP-compliant, portable skills). Runtime kept swappable behind config.
+- A3. Reasoning model via OpenAI-compatible/Anthropic API; local embedding model (e.g., nomic-embed-text) so memory never leaves the box.
+- A4. Local vector DB: **Qdrant** (Docker). Episodic store: **SQLite + FTS5**.
+- A5. Canonical "Security Brain" = git-backed Markdown/YAML; Obsidian optional editor on top.
+- A6. "Shared credentials" = delegated, scoped tokens injected at runtime via .env / secrets mount, never committed, never written to memory.
+
+---
+
+## 3. Functional requirements
+
+### 3.1 Ingestion (READ / auto, action-class A0)
+- FR1. Watch an `inbox/` directory for dropped Markdown/transcript/text files.
+- FR2. Read from the local `brain/` knowledge base.
+- FR3. (Adapter, optional/off in MVP) read-only connectors: GitHub, Linear, Slack, AWS SecurityAudit. MVP ships these **disabled**; ingestion works from files alone.
+
+### 3.2 Memory (local-only)
+- FR4. Episodic: every session/tool-call/decision written to SQLite + FTS5 (searchable).
+- FR5. Semantic: embed brain/ + ingested artifacts into Qdrant for retrieval.
+- FR6. Procedural: skills stored as versioned files in `skills/` (git).
+- FR7. Typed memory objects with fields: id, type, source, sensitivity, ttl, framework_tags, related_objects, confidence, content.
+- FR8. Redaction-at-write: deterministic secret/PII regex + denylist before any persistence.
+- FR9. `forget` operation: purge memory by tag/id across episodic + semantic.
+
+### 3.3 Drafting skills (DRAFT / auto, A1–A2)
+- FR10. `meeting-synth`: transcript/notes -> decisions, risks, action items, proposed tickets (as files), control tags.
+- FR11. `policy-redline`: change request -> Markdown redline in `brain/policies/proposals/` on an agent branch + Draft PR body.
+- FR12. `csf-crosswalk`: artifact/policy -> control mapping table (CSF 2.0 + SOC2 CC + 800-53 placeholders) + gap list.
+- FR13. `evidence-pack`: control id + period -> evidence index file under `brain/evidence/...`.
+- FR14. `ticket-draft`: produces an AI-Proposed ticket object (file in MVP) with suggested owner + rationale + control tags; assignee = self/unassigned.
+- FR15. `daily-brief`: synthesize open proposals, recent sessions, pending approvals into a Markdown brief.
+
+### 3.4 Approval queue (GATE, A3–A4)
+- FR16. Any action class A3+ creates a Change Proposal Object (CPO) file in `governance/approval-queue/`.
+- FR17. CLI/Make commands: list, show, approve, reject (with reason), batch-approve by type+max-risk.
+- FR18. Approval is the ONLY path to: assign human, raise priority above High, terminal ticket states, merge PR, publish policy, GRC write (post-MVP).
+
+### 3.5 Verification (reliability layer — required before any write)
+- FR19. Each write skill runs verifiers before completing: schema validation, control-mapping-present check, secrets scan, and a self-critique pass against the skill's success rubric (retry once, else escalate to approval).
+- FR20. Each write skill emits a diff/"about-to-do" preview into the audit log before execution.
+
+### 3.6 Audit & governance
+- FR21. Append-only JSONL audit log per run: run_id, timestamp, user_request, task_class, risk_class, retrieved_memory_ids, tools_called, approval_required, outputs, verifications.
+- FR22. `autonomy-policy.yaml` is the single source of truth for gates; loaded at startup.
+- FR23. CODEOWNERS makes the user the required reviewer for `agent/`, `skills/`, `brain/policies/`.
+- FR24. Nightly/`make redteam` prompt-injection corpus run against ingestion paths.
+
+### 3.7 Portability & sharing
+- FR25. `bootstrap.sh` (idempotent): installs runtime, starts Docker services, installs MCP configs + skills, seeds brain into vector DB, runs selftest.
+- FR26. `.gitignore` excludes state: secrets/, workspace/.data/, governance/audit-logs/, governance/approval-queue/, inbox/ contents.
+- FR27. `docker-compose.yml` brings up Qdrant (+ optional local model service).
+- FR28. GitHub Actions: lint policies, validate schemas, run skill eval fixtures, run secret scan, run redteam corpus.
+- FR29. Eval harness with sanitized golden fixtures to prevent skill drift.
+
+---
+
+## 4. Non-functional requirements
+- NFR1. Time-to-running on a fresh box: < 30 min via bootstrap.
+- NFR2. No secrets in git; secret scan in CI must pass.
+- NFR3. All agent actions reconstructable from audit log alone.
+- NFR4. Memory + embeddings stay local (no external embedding calls).
+- NFR5. Runtime swap (Hermes -> other) requires changing only `agent/runtime.config.yaml` + `mcp/` configs, not skills/brain.
+- NFR6. Every skill has at least one passing eval fixture in CI.
+
+---
+
+## 5. Action-risk model (governance-as-code)
+
+| Class | Approval | Examples |
+|-------|----------|----------|
+| A0 read | none (log) | read inbox, brain, tickets/findings (adapters off in MVP) |
+| A1 local draft | none (log) | write local markdown, create local branch, create CPO |
+| A2 external draft | notify only | Draft PR, AI-Proposed unassigned ticket, provenance comment |
+| A3 human workflow | REQUIRED | assign human, raise priority > High, change due date |
+| A4 authoritative record | REQUIRED | merge PR, publish policy, GRC write (post-MVP) |
+| A5 high risk | BLOCKED | prod IAM, secret rotation, delete evidence/logs, risk acceptance |
+
+Defaults: tickets created unassigned/self + suggested owner in body; PRs created as Draft on `agent/` branches with signed commits; policies written to `proposals/` requiring control mapping.
+
+---
+
+## 6. Repository structure (target)
+
+```
+security-personal-assistant/
+  README.md  LICENSE  .gitignore  .env.example
+  bootstrap.sh  Makefile  docker-compose.yml  .devcontainer/
+  agent/        charter.md  autonomy-policy.yaml  runtime.config.yaml  identity.yaml
+  brain/        00-meta/ 01-frameworks/ 02-controls/ 03-policies/ 04-standards/
+                05-procedures/ 06-risks/ 07-evidence/ 08-decisions/
+  skills/       _template/ daily-brief/ meeting-synth/ ticket-draft/
+                policy-redline/ csf-crosswalk/ evidence-pack/
+  memory/       schemas/ (cpo.schema.json, memory-object.schema.json, audit-event.schema.json)
+  mcp/          filesystem.json  github.json.disabled  linear.json.disabled
+                slack.json.disabled  aws.json.disabled  grc.json.disabled
+  connectors/   interfaces/ (ticket.py, grc.py, notes.py, comms.py)
+                tickets/none/  grc/none/   (real providers added post-MVP)
+  governance/   approval-queue/ audit-logs/ redaction-rules.yaml
+                prompt-injection-tests/ reliability-metrics.md
+  evals/        fixtures/ rubrics/ golden-outputs/ run_evals.py
+  workspace/    drafts/ proposals/ .data/   (gitignored)
+  scripts/      install.sh new-skill.sh redteam.sh backup.sh seed_brain.py
+  .github/      workflows/(policy-lint.yml skill-tests.yml redteam.yml secret-scan.yml)
+                CODEOWNERS  PULL_REQUEST_TEMPLATE.md  ISSUE_TEMPLATE/
+```
+
+---
+
+## 7. Build plan (milestones, handoff-ready)
+
+### Milestone 0 — Repo skeleton & portability spine (Day 1)
+Tasks:
+- Create repo, LICENSE (MIT), README stub, .gitignore, .env.example.
+- Add docker-compose.yml (Qdrant + volume), Makefile targets, .devcontainer.
+- Write bootstrap.sh (idempotent) and scripts/seed_brain.py stub.
+Acceptance:
+- `./bootstrap.sh` on a clean box brings up Qdrant, installs runtime, runs `make selftest` (passes with empty stubs).
+
+### Milestone 1 — Governance spine (Day 1–2)
+Tasks:
+- Author agent/autonomy-policy.yaml (the action-risk model above).
+- Author agent/charter.md (system prompt: persona, Draft-by-default rules, must read autonomy-policy).
+- JSON schemas: memory-object, cpo (change proposal object), audit-event.
+- governance/redaction-rules.yaml.
+- Approval queue CLI: make proposals / show / approve / reject.
+Acceptance:
+- A hand-created CPO can be listed, shown, approved, rejected; each transition writes an audit event; schema validation passes in CI.
+
+### Milestone 2 — Local memory (Day 2–3)
+Tasks:
+- SQLite + FTS5 episodic store (schema + read/write/search).
+- Qdrant semantic memory: embed via local model (nomic-embed-text), upsert + query.
+- Append-only JSONL audit logger.
+- Redaction-at-write enforced on all persistence paths.
+- `forget` by id/tag.
+Acceptance:
+- Ingest a sample file -> embedded + searchable; episodic + audit entries created; secret in a fixture is redacted before persistence.
+
+### Milestone 3 — First skills (draft-only) (Day 3–5)
+Tasks:
+- Skill scaffold (_template) + scripts/new-skill.sh.
+- Implement meeting-synth, ticket-draft, policy-redline, csf-crosswalk (csf+soc2 tags), daily-brief.
+- Each skill: skill.md, input/output JSON schema, verifiers/, fixtures/, tests/.
+- Verifier suite: schema, control-mapping-present, secrets-scan, self-critique rubric (retry-once-then-escalate).
+Acceptance:
+- `make ingest FILE=evals/fixtures/meeting_sample.md` produces: ticket proposal file(s), control tags, audit log, and (for policy changes) a redline file + Draft-PR-body file on an `agent/` branch. All verifiers pass on golden fixtures.
+
+### Milestone 4 — Connector abstraction (adapters off) (Day 5–6)
+Tasks:
+- Define connectors/interfaces (ticket, grc, notes, comms) with capabilities + gated_capabilities.
+- Implement `none` providers (write proposals/tickets as files).
+- mcp/ configs present; all vendor MCPs shipped `.disabled`.
+Acceptance:
+- With TICKET_PROVIDER=none and GRC_PROVIDER=none, full draft workflow runs file-only; flipping a provider is a config change, not a code change (verified by interface contract test).
+
+### Milestone 5 — CI, evals, redteam, packaging (Day 6–7)
+Tasks:
+- GitHub Actions: policy-lint, skill-tests (eval fixtures), secret-scan, redteam (prompt-injection corpus).
+- evals/run_evals.py scoring drafts vs golden outputs.
+- governance/prompt-injection-tests corpus (poisoned transcript, malicious ticket text).
+- PR template (requires control impact + provenance), CODEOWNERS.
+- README quickstart + architecture diagram; instructions to fork into private repo.
+Acceptance:
+- All CI checks green on a PR; redteam corpus runs and flags injection attempts; a second person can clone + bootstrap + run meeting-synth in < 30 min.
+
+### Post-MVP backlog (do NOT build in MVP)
+- Linear/Jira provider adapters (GraphQL/REST) behind ticket interface.
+- GRC provider adapters (Vanta MCP / Drata API / Secureframe REST) behind grc interface, content-gated publisher skill.
+- Notion/Drive/SharePoint one-way publish mirrors on policy merge.
+- GitHub App identity for PR automation (replace PAT).
+- Self-improving skill loop with CODEOWNER-gated skill PRs + reliability metrics dashboard.
+
+---
+
+## 8. Reliability metrics to track (from first skill live)
+- M1. First-pass acceptance rate (drafts merged without substantive edits). Target > 70% within 4 weeks/skill.
+- M2. Mean time to detect agent error. Target < 24h.
+- M3. Verifier pass rate on first attempt per skill.
+
+---
+
+## 9. Definition of Done (MVP)
+- DoD1. Fresh-box clone + bootstrap -> running agent in < 30 min.
+- DoD2. meeting-synth, ticket-draft, policy-redline, csf-crosswalk, daily-brief all pass golden-fixture evals in CI.
+- DoD3. All A3+ actions blocked without an approved CPO; audit log reconstructs every action.
+- DoD4. No secrets in git; secret scan + redaction tests pass.
+- DoD5. GRC + ticket adapters present but disabled; file-only mode fully functional.
+- DoD6. Public template + private-fork instructions documented.
+
+---
+
+## 10. Handoff prompt for the coding agent (paste this)
+
+> Build the repository described in this document. Start at Milestone 0 and proceed sequentially; do not begin a milestone until the prior milestone's acceptance criteria pass. Default runtime is Hermes Agent; keep it swappable behind agent/runtime.config.yaml. All write surfaces in MVP are draft-only: local files, agent-owned git branches, Draft PRs, and AI-Proposed unassigned ticket files. Enforce agent/autonomy-policy.yaml at the tool layer — any A3+ action must create a Change Proposal Object and block until approved. Persist nothing without running redaction-at-write. Every action emits a JSONL audit event. Ship vendor connectors (Linear/Jira, Vanta/Drata/Secureframe) as disabled adapter stubs behind the interface contracts in connectors/interfaces — do NOT implement live vendor writes. Provide bootstrap.sh, docker-compose.yml (Qdrant + local embedding model), Makefile, GitHub Actions (policy-lint, skill-tests, secret-scan, redteam), and golden-fixture evals for each skill. Deliverable is a clean MIT-licensed public template plus instructions to fork into a private org repo. Acceptance = Section 9 Definition of Done.

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill", "control_mappings", "gaps", "control_tags"],
+  "properties": {
+    "skill": { "const": "csf-crosswalk" },
+    "artifact": { "type": "string" },
+    "control_mappings": { "type": "array", "minItems": 1 },
+    "gaps": { "type": "array" },
+    "control_tags": { "type": "array", "minItems": 1 }
+  }
+}
