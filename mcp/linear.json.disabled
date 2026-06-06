@@ -1,0 +1,6 @@
+{
+  "name": "linear",
+  "enabled": false,
+  "provider": "linear",
+  "notes": "DISABLED — use connectors/tickets/linear stub; file-only mode in MVP"
+}

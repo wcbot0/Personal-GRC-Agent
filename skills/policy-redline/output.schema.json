@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill", "policy_name", "redline_file", "draft_pr_body_file", "control_tags"],
+  "properties": {
+    "skill": { "const": "policy-redline" },
+    "policy_name": { "type": "string" },
+    "redline_file": { "type": "string" },
+    "draft_pr_body_file": { "type": "string" },
+    "branch": { "type": "string" },
+    "control_tags": { "type": "array", "minItems": 1 }
+  }
+}

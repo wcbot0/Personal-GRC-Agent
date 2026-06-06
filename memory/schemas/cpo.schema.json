@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spa.local/schemas/cpo.schema.json",
+  "title": "ChangeProposalObject",
+  "type": "object",
+  "required": [
+    "id",
+    "created_at",
+    "status",
+    "action_class",
+    "action_type",
+    "title",
+    "description",
+    "risk_rationale",
+    "proposed_change"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^cpo-[0-9a-f-]{36}$" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "approved", "rejected", "expired"]
+    },
+    "action_class": {
+      "type": "string",
+      "enum": ["A3", "A4", "A5"]
+    },
+    "action_type": { "type": "string" },
+    "title": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "risk_rationale": { "type": "string" },
+    "proposed_change": { "type": "object" },
+    "control_tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requested_by": { "type": "string" },
+    "approved_by": { "type": ["string", "null"] },
+    "approved_at": { "type": ["string", "null"], "format": "date-time" },
+    "rejected_by": { "type": ["string", "null"] },
+    "rejected_at": { "type": ["string", "null"], "format": "date-time" },
+    "rejection_reason": { "type": ["string", "null"] },
+    "run_id": { "type": "string" }
+  },
+  "additionalProperties": false
+}

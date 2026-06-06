@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill", "ticket", "control_tags"],
+  "properties": {
+    "skill": { "const": "ticket-draft" },
+    "ticket": { "type": "object" },
+    "artifact_file": { "type": "string" },
+    "control_tags": { "type": "array", "minItems": 1 }
+  }
+}
