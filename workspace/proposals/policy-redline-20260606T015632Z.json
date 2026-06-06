@@ -1,0 +1,13 @@
+{
+  "skill": "policy-redline",
+  "policy_name": "access-control-policy",
+  "redline_file": "brain/03-policies/proposals/access-control-policy-redline.md",
+  "draft_pr_body_file": "workspace/proposals/draft-pr-body-access-control-policy.md",
+  "branch": "agent/policy-redline-20260606",
+  "control_tags": [
+    "CSF:PR.IP",
+    "SOC2:CC6.1",
+    "SOC2:CC8.1",
+    "800-53:AC-1"
+  ]
+}
