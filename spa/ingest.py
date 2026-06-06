@@ -12,6 +12,9 @@ from spa.memory.semantic import SemanticMemory
 from spa.paths import ROOT, get_drafts_dir, get_proposals_dir, rel_to_repo
 from spa.skills.runner import run_skill
 from spa.skills.ticket_draft import create_proposal
+from spa.tools.guard import ToolGuard
+from spa.tools.write import guarded_write
+
 
 MEETING_SIGNALS = (
     "decisions",
@@ -55,6 +58,7 @@ def _audit_content_summary(content: str) -> str:
 
 def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
     audit = audit or AuditLogger()
+    guard = ToolGuard(audit=audit)
     file_path = Path(path)
     if not file_path.is_absolute():
         file_path = ROOT / file_path
@@ -68,6 +72,13 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
     redacted = redact_text(content)
     source = str(file_path.relative_to(ROOT)) if file_path.is_relative_to(ROOT) else str(file_path)
 
+    guard.execute(
+        "ingest_file",
+        lambda: None,
+        preview=_audit_content_summary(redacted),
+        task_class="ingest",
+    )
+
     audit.emit(
         "ingest_start",
         task_class="ingest",
@@ -80,46 +91,32 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
     episodic = EpisodicMemory()
     semantic = SemanticMemory()
 
-    episodic_record = episodic.write(
-        {
-            "source": source,
-            "content": redacted,
-            "type": "episodic",
-            "sensitivity": "internal",
-            "tags": ["ingested"],
-        }
-    )
-    audit.emit(
+    episodic_record = guarded_write(
+        guard,
         "memory_episodic_write",
-        task_class="ingest",
-        risk_class="A0",
-        tools_called=["episodic.write"],
-        retrieved_memory_ids=[episodic_record["id"]],
-        outputs={"episodic_id": episodic_record["id"], "source": source},
+        lambda: episodic.write(
+            {
+                "source": source,
+                "content": redacted,
+                "type": "episodic",
+                "sensitivity": "internal",
+                "tags": ["ingested"],
+            }
+        ),
+        preview=f"source={source}",
+        audit_outputs=lambda record: {"episodic_id": record["id"], "source": source},
     )
 
-    semantic_id = semantic.upsert_document(
-        doc_id=source,
-        content=redacted,
-        metadata={"source": source, "type": "ingested", "tags": ["ingested"]},
-    )
-    audit.emit(
+    semantic_id = guarded_write(
+        guard,
         "memory_semantic_upsert",
-        task_class="ingest",
-        risk_class="A0",
-        tools_called=["semantic.upsert_document"],
-        retrieved_memory_ids=[semantic_id],
-        outputs={"semantic_id": semantic_id, "source": source},
-    )
-
-    audit.emit(
-        "ingest_complete",
-        task_class="ingest",
-        risk_class="A0",
-        tools_called=["ingest_file"],
-        retrieved_memory_ids=[episodic_record["id"], semantic_id],
-        outputs={"source": source, "episodic_id": episodic_record["id"], "semantic_id": semantic_id},
-        preview=_audit_content_summary(redacted),
+        lambda: semantic.upsert_document(
+            doc_id=source,
+            content=redacted,
+            metadata={"source": source, "type": "ingested", "tags": ["ingested"]},
+        ),
+        preview=f"source={source}",
+        audit_outputs=lambda doc_id: {"semantic_id": doc_id, "source": source},
     )
 
     result: dict[str, Any] = {
@@ -139,47 +136,116 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
     }
 
     if not _is_meeting_content(redacted):
+        audit.emit(
+            "ingest_complete",
+            task_class="ingest",
+            risk_class="A0",
+            tools_called=["ingest_file"],
+            retrieved_memory_ids=[episodic_record["id"], semantic_id],
+            outputs={"source": source, "episodic_id": episodic_record["id"], "semantic_id": semantic_id},
+            preview=_audit_content_summary(redacted),
+        )
         return result
 
-    meeting_out = get_drafts_dir() / "meeting-synth"
-    meeting_result = run_skill(
-        "meeting-synth",
-        file_path,
-        output_dir=meeting_out,
-        audit=audit,
-    )
-    _assert_verifiers_passed("meeting-synth", meeting_result["verifications"])
-    result["meeting_synth"] = meeting_result["output"]
-    result["verifications"].extend(meeting_result["verifications"])
+    try:
+        meeting_out = get_drafts_dir() / "meeting-synth"
+        meeting_out.mkdir(parents=True, exist_ok=True)
+        meeting_input = meeting_out / "ingest-input.md"
 
-    for ticket in meeting_result["output"].get("proposed_tickets", []):
-        proposal = create_proposal(ticket)
-        result["ticket_proposals"].append(proposal)
-        audit.emit(
-            "ticket_draft_created",
-            task_class="ingest",
-            risk_class="A2",
-            tools_called=["ticket_provider.create_draft"],
-            outputs={
-                "path": rel_to_repo(Path(proposal["path"])),
-                "ticket_id": proposal["ticket"]["id"],
-                "control_tags": proposal["ticket"].get("control_tags", []),
-            },
-            preview=f"ticket_id={proposal['ticket']['id']}",
+        def _write_redacted_input() -> None:
+            meeting_input.write_text(redacted, encoding="utf-8")
+
+        guarded_write(
+            guard,
+            "write_local_markdown",
+            _write_redacted_input,
+            preview=meeting_input.name,
         )
-
-    policy_text = _policy_change_text(redacted, meeting_result["output"].get("action_items", []))
-    if policy_text:
-        policy_input = meeting_out / "policy-change-input.md"
-        policy_input.write_text(policy_text, encoding="utf-8")
-        policy_result = run_skill(
-            "policy-redline",
-            policy_input,
-            output_dir=get_proposals_dir(),
+        meeting_result = run_skill(
+            "meeting-synth",
+            meeting_input,
+            output_dir=meeting_out,
             audit=audit,
+            guard=guard,
         )
-        _assert_verifiers_passed("policy-redline", policy_result["verifications"])
-        result["policy_redline"] = policy_result["output"]
-        result["verifications"].extend(policy_result["verifications"])
+        _assert_verifiers_passed("meeting-synth", meeting_result["verifications"])
+        result["meeting_synth"] = meeting_result["output"]
+        result["verifications"].extend(meeting_result["verifications"])
+
+        for ticket in meeting_result["output"].get("proposed_tickets", []):
+            proposal = create_proposal(ticket, guard=guard)
+            result["ticket_proposals"].append(proposal)
+            audit.emit(
+                "ticket_draft_created",
+                task_class="ingest",
+                risk_class="A2",
+                tools_called=["create_ticket_draft"],
+                outputs={
+                    "path": rel_to_repo(Path(proposal["path"])),
+                    "ticket_id": proposal["ticket"]["id"],
+                    "control_tags": proposal["ticket"].get("control_tags", []),
+                },
+                preview=f"ticket_id={proposal['ticket']['id']}",
+            )
+
+        policy_text = _policy_change_text(redacted, meeting_result["output"].get("action_items", []))
+        if policy_text:
+            policy_input = meeting_out / "policy-change-input.md"
+
+            def _write_policy_input() -> None:
+                policy_input.write_text(policy_text, encoding="utf-8")
+
+            guarded_write(
+                guard,
+                "write_local_markdown",
+                _write_policy_input,
+                preview=policy_input.name,
+            )
+            policy_result = run_skill(
+                "policy-redline",
+                policy_input,
+                output_dir=get_proposals_dir(),
+                audit=audit,
+                guard=guard,
+            )
+            _assert_verifiers_passed("policy-redline", policy_result["verifications"])
+            result["policy_redline"] = policy_result["output"]
+            result["verifications"].extend(policy_result["verifications"])
+    except Exception as exc:
+        audit.emit(
+            "ingest_failed",
+            task_class="ingest",
+            risk_class="A0",
+            tools_called=["ingest_file"],
+            retrieved_memory_ids=[episodic_record["id"], semantic_id],
+            outputs={
+                "source": source,
+                "episodic_id": episodic_record["id"],
+                "semantic_id": semantic_id,
+                "error": str(exc),
+                "meeting_synth": result["meeting_synth"] is not None,
+                "ticket_count": len(result["ticket_proposals"]),
+                "policy_redline": result["policy_redline"] is not None,
+            },
+            preview=_audit_content_summary(redacted),
+        )
+        raise
+
+    audit.emit(
+        "ingest_complete",
+        task_class="ingest",
+        risk_class="A0",
+        tools_called=["ingest_file"],
+        retrieved_memory_ids=[episodic_record["id"], semantic_id],
+        outputs={
+            "source": source,
+            "episodic_id": episodic_record["id"],
+            "semantic_id": semantic_id,
+            "meeting_synth": result["meeting_synth"] is not None,
+            "ticket_count": len(result["ticket_proposals"]),
+            "policy_redline": result["policy_redline"] is not None,
+        },
+        preview=_audit_content_summary(redacted),
+    )
 
     return result

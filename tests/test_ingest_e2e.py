@@ -41,4 +41,4 @@ def test_ingest_meeting_sample_produces_draft_artifacts():
 
     meeting_out = get_drafts_dir() / "meeting-synth"
     assert meeting_out.exists()
-    assert list(meeting_out.glob("ticket-proposal-*.json"))
+    assert list(meeting_out.glob("meeting-synth-*.json"))

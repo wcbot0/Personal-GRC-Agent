@@ -4,6 +4,7 @@ secrets/
 workspace/.data/
 governance/audit-logs/
 governance/approval-queue/
+governance/eval-history/m3-*.json
 inbox/*
 !inbox/.gitkeep
 

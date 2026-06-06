@@ -8,6 +8,9 @@ on:
 jobs:
   skill-tests:
     runs-on: ubuntu-latest
+    env:
+      SPA_DATA_DIR: ${{ runner.temp }}/spa_data
+      SPA_AUDIT_DIR: ${{ runner.temp }}/spa_audit
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -15,10 +18,19 @@ jobs:
           python-version: "3.12"
       - run: pip install -e .
       - name: Run skill evals
-        env:
-          SPA_DATA_DIR: ${{ runner.temp }}/spa_data
-          SPA_AUDIT_DIR: ${{ runner.temp }}/spa_audit
         run: |
           mkdir -p "$SPA_DATA_DIR" "$SPA_AUDIT_DIR"
           make eval
+      - name: Upload M3 eval history
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m3-eval-history
+          path: governance/eval-history/m3-*.json
+          if-no-files-found: ignore
       - run: python -m pytest tests/ -q
+      - name: Verify audit chain in test logs
+        run: |
+          if compgen -G "$SPA_AUDIT_DIR/audit-*.jsonl" > /dev/null; then
+            python -m spa.cli audit verify --dir "$SPA_AUDIT_DIR"
+          fi

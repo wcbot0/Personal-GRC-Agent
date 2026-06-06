@@ -6,12 +6,14 @@ import json
 import os
 import sys
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from spa.skills.runner import run_skill  # noqa: E402
+from spa.skills.verifiers import run_verifiers  # noqa: E402
 
 SKILLS = {
     "meeting-synth": "evals/fixtures/meeting_sample.md",
@@ -21,6 +23,8 @@ SKILLS = {
     "daily-brief": "evals/fixtures/daily_brief_context.md",
     "evidence-pack": "evals/fixtures/evidence_pack_input.md",
 }
+
+M3_MIN_FIRST_PASS_RATE = float(os.environ.get("SPA_M3_MIN_FIRST_PASS_RATE", "1.0"))
 
 
 def load_golden(skill: str) -> dict:
@@ -95,11 +99,53 @@ def _ensure_isolated_state_paths() -> None:
         Path(os.environ[key]).mkdir(parents=True, exist_ok=True)
 
 
+def _run_verifiers_first_pass(skill: str, fixture_path: Path) -> tuple[dict, list[dict], bool]:
+    from spa.skills.runner import _load_skill_fn
+
+    content = fixture_path.read_text(encoding="utf-8")
+    skill_fn = _load_skill_fn(skill)
+    with tempfile.TemporaryDirectory() as tmp:
+        output = skill_fn(content, context={"output_dir": Path(tmp)})
+    serialized = json.dumps(output, indent=2, default=str)
+    _, verifications = run_verifiers(skill, output, serialized, retry_fn=lambda: output)
+    first_pass = all(v.get("passed") for v in verifications)
+    return output, verifications, first_pass
+
+
+def _write_m3_report(records: list[dict]) -> Path:
+    history_dir = ROOT / "governance" / "eval-history"
+    history_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = history_dir / f"m3-{stamp}.json"
+    passed = sum(1 for r in records if r["first_pass"])
+    report = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "metric": "M3",
+        "first_pass_count": passed,
+        "total_skills": len(records),
+        "first_pass_rate": passed / len(records) if records else 0.0,
+        "skills": records,
+    }
+    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return path
+
+
 def main() -> int:
     _ensure_isolated_state_paths()
     all_errors: list[str] = []
+    m3_records: list[dict] = []
+
     for skill, fixture in SKILLS.items():
         fixture_path = ROOT / fixture
+        _, verifications, first_pass = _run_verifiers_first_pass(skill, fixture_path)
+        m3_records.append(
+            {
+                "skill": skill,
+                "first_pass": first_pass,
+                "verifiers": verifications,
+            }
+        )
+
         with tempfile.TemporaryDirectory() as tmp:
             result = run_skill(skill, fixture_path, output_dir=Path(tmp))
             errs = score_output(skill, result["output"], result["verifications"])
@@ -110,6 +156,17 @@ def main() -> int:
                     print(f"  - {e}")
             else:
                 print(f"eval {skill}: PASS")
+
+    m3_path = _write_m3_report(m3_records)
+    passed = sum(1 for r in m3_records if r["first_pass"])
+    rate = passed / len(m3_records) if m3_records else 0.0
+    print(f"M3 first-attempt pass rate: {passed}/{len(m3_records)} ({rate:.0%})")
+    print(f"M3 report: {m3_path}")
+
+    if rate < M3_MIN_FIRST_PASS_RATE:
+        all_errors.append(
+            f"M3 first-pass rate {rate:.0%} below minimum {M3_MIN_FIRST_PASS_RATE:.0%}"
+        )
 
     if all_errors:
         print(f"\nevals: {len(all_errors)} failure(s)")

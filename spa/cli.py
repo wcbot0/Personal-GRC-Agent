@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import click
 
+from spa.audit.chain import verify_chain
+from spa.evidence.export import export_evidence, parse_export_dates
 from spa.governance.approval_queue import ApprovalQueue, ApprovalQueueError
 from spa.ingest import ingest_file
+from spa.paths import get_audit_logs_dir
 
 
 @click.group()
@@ -21,6 +25,60 @@ def ingest_cmd(file_path: str) -> None:
     """Ingest a file into episodic + semantic memory."""
     result = ingest_file(file_path)
     click.echo(json.dumps(result, indent=2))
+
+
+@main.group("audit")
+def audit_group() -> None:
+    """Audit log integrity commands."""
+
+
+@audit_group.command("verify")
+@click.option("--dir", "audit_dir", default=None, type=click.Path(exists=True, file_okay=False))
+@click.option("--from", "from_date", default=None, help="Start date YYYY-MM-DD")
+@click.option("--to", "to_date", default=None, help="End date YYYY-MM-DD")
+@click.option("--require-full-chain", is_flag=True, help="Fail if legacy events without hashes exist")
+def audit_verify(
+    audit_dir: str | None,
+    from_date: str | None,
+    to_date: str | None,
+    require_full_chain: bool,
+) -> None:
+    """Verify hash chain integrity of audit JSONL logs."""
+    log_dir = Path(audit_dir) if audit_dir else get_audit_logs_dir()
+    start, end = parse_export_dates(from_date, to_date)
+    result = verify_chain(log_dir, start=start, end=end, require_full_chain=require_full_chain)
+    payload = {
+        "valid": result.valid,
+        "event_count": result.event_count,
+        "legacy_count": result.legacy_count,
+        "chain_starts": result.chain_starts,
+        "breaks": [{"event_id": b.event_id, "line": b.line_number, "reason": b.reason} for b in result.breaks],
+        "warnings": result.warnings,
+    }
+    click.echo(json.dumps(payload, indent=2))
+    if not result.valid:
+        sys.exit(1)
+
+
+@main.group("evidence")
+def evidence_group() -> None:
+    """Evidence export commands."""
+
+
+@evidence_group.command("export")
+@click.option("--from", "from_date", default=None, help="Start date YYYY-MM-DD")
+@click.option("--to", "to_date", default=None, help="End date YYYY-MM-DD")
+@click.option("--output", required=True, type=click.Path(dir_okay=False))
+@click.option("--force", is_flag=True, help="Export even if chain verification fails")
+def evidence_export(from_date: str | None, to_date: str | None, output: str, force: bool) -> None:
+    """Export auditor-ready evidence bundle."""
+    start, end = parse_export_dates(from_date, to_date)
+    try:
+        manifest = export_evidence(output=Path(output), start=start, end=end, force=force)
+    except RuntimeError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+    click.echo(json.dumps(manifest, indent=2))
 
 
 @main.group("proposals")

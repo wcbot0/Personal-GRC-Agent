@@ -10,7 +10,7 @@ _DISABLED = disabled_post_mvp_message("jira", "TICKET_PROVIDER")
 
 
 class JiraTicketProvider(TicketConnector):
-    def __init__(self) -> None:
+    def __init__(self, guard=None) -> None:
         super().__init__(
             provider="jira",
             enabled=False,

@@ -10,7 +10,7 @@ _DISABLED = disabled_post_mvp_message("drata", "GRC_PROVIDER")
 
 
 class DrataGrcProvider(GrcConnector):
-    def __init__(self) -> None:
+    def __init__(self, guard=None) -> None:
         super().__init__(
             provider="drata",
             enabled=False,

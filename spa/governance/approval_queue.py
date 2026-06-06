@@ -80,7 +80,7 @@ class ApprovalQueue:
         cpo = redact_obj(cpo)
         self._validate(cpo)
         self._path_for(cpo["id"]).write_text(json.dumps(cpo, indent=2), encoding="utf-8")
-        self.audit.emit(
+        audit_event = self.audit.emit(
             "cpo_created",
             task_class="governance",
             risk_class=action_class,
@@ -88,6 +88,10 @@ class ApprovalQueue:
             cpo_id=cpo["id"],
             outputs={"cpo_id": cpo["id"], "title": title},
         )
+        cpo["created_audit_event_id"] = audit_event["event_id"]
+        cpo["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self._validate(cpo)
+        self._path_for(cpo["id"]).write_text(json.dumps(cpo, indent=2), encoding="utf-8")
         return cpo
 
     def list_proposals(self, status: str | None = "pending") -> list[dict[str, Any]]:
@@ -241,6 +245,20 @@ class ApprovalQueue:
                 preview=self.build_preview(cpo),
             )
             return result
+        elif action_type == "memory_forget":
+            from spa.memory.forget import forget_by_id
+
+            target = change.get("target")
+            if not target:
+                raise ApprovalQueueError("memory_forget CPO missing target in proposed_change")
+            result = forget_by_id(target, guard=guard, cpo_id=cpo_id, audit=self.audit)
+        elif action_type == "memory_forget_tag":
+            from spa.memory.forget import forget_by_tag
+
+            target = change.get("target")
+            if not target:
+                raise ApprovalQueueError("memory_forget_tag CPO missing target in proposed_change")
+            result = forget_by_tag(target, guard=guard, cpo_id=cpo_id, audit=self.audit)
         else:
             tool_name = action_type
             result = guard.execute(
