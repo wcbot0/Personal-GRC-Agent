@@ -1,0 +1,14 @@
+{
+  "id": "AI-PROPOSED-002",
+  "title": "Follow-up: Run csf-crosswalk on new SaaS vendor questionnaire",
+  "status": "ai_proposed",
+  "assignee": "unassigned",
+  "suggested_owner": "security-team",
+  "rationale": "Derived from meeting action item: Follow-up: Run csf-crosswalk on new SaaS vendor questionnaire",
+  "description": "Follow-up: Run csf-crosswalk on new SaaS vendor questionnaire\n\nSuggested owner: security-team\n\nDerived from meeting action item: Follow-up: Run csf-crosswalk on new SaaS vendor questionnaire",
+  "control_tags": [
+    "CSF:ID.AM",
+    "SOC2:CC3.2",
+    "SOC2:CC6.1"
+  ]
+}
