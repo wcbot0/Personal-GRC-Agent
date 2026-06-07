@@ -98,3 +98,9 @@ connectors:
   grc:
     default_provider: none
     live_write_enabled: false
+  notes:
+    default_provider: filesystem
+    live_write_enabled: false
+  comms:
+    default_provider: none
+    live_write_enabled: false

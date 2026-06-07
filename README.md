@@ -393,6 +393,16 @@ Example configs for Linear, GitHub, Slack, and GRC tools live in `mcp/` but ship
 | Chat ignores PGA rules | Start `hermes chat` from the repo root (loads `AGENTS.md`) |
 | API key errors | Run `hermes model` or `hermes doctor` — Hermes keys live in `~/.hermes/.env`, not PGA's `.env` |
 
+### Known limitations & workarounds (from integration testing)
+
+| Issue | Context | Workaround |
+|-------|---------|------------|
+| **No arm64 build for `text-embeddings-inference`** | Docker image `ghcr.io/huggingface/text-embeddings-inference:cpu-1.5` lacks `linux/arm64/v8` manifest — embeddings service won't start on Apple Silicon | Added local fallback via `sentence-transformers` (nomic-embed-text-v1) in `spa/memory/semantic.py`. Works offline, no GPU needed. |
+| **`connectors` package not importable** | `pyproject.toml` only included `spa*` packages; ticket/grc stubs in `connectors/` were missing | Added `connectors*` to `[tool.setuptools.packages.find]` `include` list. Run `pip install -e .` after changing. |
+| **TensorFlow/PyTorch einops warning** | `nomic-ai/nomic-embed-text-v1` uses einops internally; optional dependency | `pip install einops` to suppress warning; not functionally required. |
+| **Tests expect offline Qdrant fallback** | Some tests force Qdrant import failure to verify offline path; with Qdrant running they fail | Tests now mock `qdrant_client` import failure via `monkeypatch`. If you stop Qdrant, tests pass without mocks. |
+| **Hermes model config separate from PGA** | Hermes stores API keys in `~/.hermes/.env`; PGA uses `.env` in repo root | Configure both if using both modes. Hermes uses Nous provider by default; PGA uses `LLM_PROVIDER`/`LLM_API_KEY`. |
+
 Runtime wiring is declared in `agent/runtime.config.yaml`. Swap runtimes there without changing skills or brain content.
 
 ---
@@ -410,12 +420,15 @@ All runtime settings live in `.env` (never commit this file):
 | `LLM_API_BASE` | `https://api.openai.com/v1` | OpenAI-compatible API endpoint |
 | `LLM_API_KEY` | _(empty)_ | Your LLM API key |
 | `LLM_MODEL` | `gpt-4o-mini` | Model for agent sessions |
-| `EMBEDDING_API_BASE` | `http://localhost:8080` | Local embedding service |
+| `EMBEDDING_API_BASE` | `http://localhost:8080` | Local embedding service (optional; will use local `sentence-transformers` fallback if unreachable) |
 | `QDRANT_HOST` | `localhost` | Qdrant vector DB host |
 | `QDRANT_PORT` | `6333` | Qdrant port |
 | `TICKET_PROVIDER` | `none` | `none`, `linear`, or `jira` |
 | `GRC_PROVIDER` | `none` | `none`, `vanta`, `drata`, or `secureframe` |
-| `NOTES_PROVIDER` | `filesystem` | Local file-based notes |
+| `NOTES_PROVIDER` | `filesystem` | `filesystem` (local files) or `granola` (disabled in MVP) |
+| `COMMS_PROVIDER` | `none` | `none` or `slack` (disabled in MVP) |
+
+**Note:** The `text-embeddings-inference` Docker image has no arm64 build. On Apple Silicon, embeddings run locally via `sentence-transformers` (model: `nomic-ai/nomic-embed-text-v1`) automatically — no GPU required. Set `EMBEDDING_API_BASE` only if you run a compatible remote embedding service.
 
 Agent behavior is further defined in:
 

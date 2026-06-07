@@ -1,0 +1,6 @@
+{
+  "name": "granola",
+  "enabled": false,
+  "provider": "granola",
+  "notes": "DISABLED in MVP — Granola meeting notes ingestion deferred"
+}
