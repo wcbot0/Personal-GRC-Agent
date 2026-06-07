@@ -6,14 +6,20 @@ from pathlib import Path
 
 import pytest
 
+from connectors.comms.none.provider import NoneCommsProvider
+from connectors.comms.slack.provider import SlackCommsProvider
 from connectors.grc.drata.provider import DrataGrcProvider
 from connectors.grc.none.provider import NoneGrcProvider
 from connectors.grc.secureframe.provider import SecureframeGrcProvider
 from connectors.grc.vanta.provider import VantaGrcProvider
+from connectors.notes.filesystem.provider import FilesystemNotesProvider
+from connectors.notes.granola.provider import GranolaNotesProvider
 from connectors.registry import (
     LiveWriteDisabledError,
     POST_MVP_ENABLE_MSG,
+    get_comms_provider,
     get_grc_provider,
+    get_notes_provider,
     get_ticket_provider,
 )
 from connectors.tickets.jira.provider import JiraTicketProvider
@@ -22,6 +28,8 @@ from connectors.tickets.none.provider import NoneTicketProvider
 
 VENDOR_TICKET_STUBS = (LinearTicketProvider, JiraTicketProvider)
 VENDOR_GRC_STUBS = (VantaGrcProvider, DrataGrcProvider, SecureframeGrcProvider)
+VENDOR_NOTES_STUBS = (GranolaNotesProvider,)
+VENDOR_COMMS_STUBS = (SlackCommsProvider,)
 
 
 @pytest.fixture
@@ -118,3 +126,60 @@ def test_linear_selected_is_no_op_with_post_mvp_message(monkeypatch):
     monkeypatch.setenv("TICKET_PROVIDER", "linear")
     with pytest.raises(LiveWriteDisabledError):
         get_ticket_provider()
+
+
+@pytest.mark.parametrize("cls", VENDOR_NOTES_STUBS)
+def test_vendor_notes_stub_declares_disabled(cls):
+    provider = cls()
+    contract = provider.contract()
+    assert provider.enabled is False
+    assert contract["enabled"] is False
+
+
+@pytest.mark.parametrize("cls", VENDOR_NOTES_STUBS)
+def test_vendor_notes_stub_raises_on_use(cls):
+    provider = cls()
+    with pytest.raises(RuntimeError, match="disabled in MVP"):
+        provider.read("meeting-123")
+    with pytest.raises(RuntimeError, match="post-MVP"):
+        provider.list_sources()
+
+
+@pytest.mark.parametrize("cls", VENDOR_COMMS_STUBS)
+def test_vendor_comms_stub_declares_disabled(cls):
+    provider = cls()
+    contract = provider.contract()
+    assert provider.enabled is False
+    assert contract["enabled"] is False
+
+
+@pytest.mark.parametrize("cls", VENDOR_COMMS_STUBS)
+def test_vendor_comms_stub_raises_on_use(cls):
+    provider = cls()
+    with pytest.raises(RuntimeError, match="disabled in MVP"):
+        provider.read_messages("general")
+
+
+def test_none_comms_provider_returns_empty():
+    provider = NoneCommsProvider()
+    assert provider.enabled is True
+    assert provider.read_messages("any-channel") == []
+
+
+def test_filesystem_notes_provider_default(monkeypatch):
+    monkeypatch.delenv("NOTES_PROVIDER", raising=False)
+    provider = get_notes_provider()
+    assert provider.__class__ is FilesystemNotesProvider
+    assert provider.enabled is True
+
+
+def test_granola_selected_is_no_op_with_post_mvp_message(monkeypatch):
+    monkeypatch.setenv("NOTES_PROVIDER", "granola")
+    with pytest.raises(LiveWriteDisabledError):
+        get_notes_provider()
+
+
+def test_slack_selected_is_no_op_with_post_mvp_message(monkeypatch):
+    monkeypatch.setenv("COMMS_PROVIDER", "slack")
+    with pytest.raises(LiveWriteDisabledError):
+        get_comms_provider()

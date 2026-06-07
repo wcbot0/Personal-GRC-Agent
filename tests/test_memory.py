@@ -21,6 +21,17 @@ def test_ingest_redacts_before_persist(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     monkeypatch.setenv("SPA_DATA_DIR", str(data_dir))
 
+    # Force offline fallback by mocking Qdrant import failure
+    import builtins
+    original_import = builtins.__import__
+
+    def fail_qdrant_import(name, *args, **kwargs):
+        if name.startswith("qdrant_client"):
+            raise ImportError("force offline fallback")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_qdrant_import)
+
     aws_key = "AKIAIOSFODNN7EXAMPLE"
     bearer_secret = "sk-live-abcdefghijklmnopqrstuvwxyz"
     denylist_secret = "SUPER_SECRET_TOKEN_SHOULD_REDACT"
@@ -57,6 +68,17 @@ def test_ingest_audit_preview_omits_document_content(tmp_path, monkeypatch):
     audit_dir = tmp_path / "audit"
     monkeypatch.setenv("SPA_DATA_DIR", str(data_dir))
     monkeypatch.setenv("SPA_AUDIT_DIR", str(audit_dir))
+
+    # Force offline fallback by mocking Qdrant import failure
+    import builtins
+    original_import = builtins.__import__
+
+    def fail_qdrant_import(name, *args, **kwargs):
+        if name.startswith("qdrant_client"):
+            raise ImportError("force offline fallback")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_qdrant_import)
 
     fixture = tmp_path / "internal.md"
     fixture.write_text("Confidential IAM cleanup notes", encoding="utf-8")
