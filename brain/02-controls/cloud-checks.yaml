@@ -1,26 +1,44 @@
-# Control → cloud evidence check mappings by provider.
-# Check names must match connectors/cloud/aws/provider READ_ONLY_CHECKS keys.
+# Cloud check → SOC 2 Common Criteria mapping (human-reviewed audit logic).
+#
+# Each check name is a stable identifier resolved by the cloud provider's
+# read-only collect(check, params) API. Checks perform no mutating operations.
+# A control is "covered" by automated cloud evidence only when ALL listed
+# checks return satisfactory findings for the in-scope account and region.
+#
+# Control IDs match brain/01-frameworks/soc2-common-criteria.md and
+# soc2-csf-crosswalk.md (tag format SOC2:CC<n>.<n>).
 
-controls:
+aws:
   CC6.1:
-    description: Logical access — IAM identity and access management
+    description: Logical access — IAM password policy, MFA, root usage
     checks:
-      aws:
-        - iam_account_summary
-        - iam_password_policy
-        - cloudtrail_trails
-      gcp: []
-  CC6.2:
-    description: Authentication and credential management
+      - iam_password_policy
+      - mfa_enforced
+      - root_account_mfa
+      - root_access_keys
+  CC6.6:
+    description: Boundary protection — public exposure
     checks:
-      aws:
-        - iam_password_policy
-      gcp: []
+      - s3_public_access_block
+      - security_groups_open_ingress
+  CC6.7:
+    description: Encryption in transit/at rest
+    checks:
+      - s3_encryption_at_rest
+      - ebs_encryption_default
+  CC7.1:
+    description: Configuration monitoring — drift and vulnerability introduction
+    checks:
+      - config_recorders
   CC7.2:
-    description: Security monitoring — detection services
+    description: Monitoring — logging enabled
     checks:
-      aws:
-        - guardduty_detectors
-        - cloudtrail_trails
-        - config_recorders
-      gcp: []
+      - cloudtrail_enabled
+      - cloudtrail_multi_region
+      - config_recorder_on
+  CC6.8:
+    description: Malware and unauthorized software — threat detection
+    checks:
+      - guardduty_detectors
+
+gcp: {}

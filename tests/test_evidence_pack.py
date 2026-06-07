@@ -68,7 +68,12 @@ def test_evidence_pack_none_provider_manual_only(monkeypatch, guard_setup):
 
     _validate_output_schema(output)
     assert output["provider"] == "none"
-    assert output["checks"] == ["iam_account_summary", "iam_password_policy", "cloudtrail_trails"]
+    assert output["checks"] == [
+        "iam_password_policy",
+        "mfa_enforced",
+        "root_account_mfa",
+        "root_access_keys",
+    ]
     assert output["findings"] == []
 
     index_path = out_dir / "brain" / "evidence" / "CC6-1" / Path(output["index_file"]).name
@@ -87,17 +92,12 @@ def test_evidence_pack_mocked_aws_includes_findings(monkeypatch, guard_setup):
     account_id = "123456789012"
     mock_provider = MockCloudProvider(
         {
-            "iam_account_summary": [
-                {"check": "iam_account_summary", "metric": "Users", "value": 5, "status": "collected"},
+            "iam_password_policy": [
+                {"check": "iam_password_policy", "status": "collected", "detail": {"MinimumPasswordLength": 14}},
             ],
-            "iam_password_policy": [],
-            "cloudtrail_trails": [
-                {
-                    "check": "cloudtrail_trails",
-                    "status": "collected",
-                    "resource": f"arn:aws:cloudtrail:us-east-1:{account_id}:trail/org-trail",
-                },
-            ],
+            "mfa_enforced": [],
+            "root_account_mfa": [],
+            "root_access_keys": [],
         }
     )
 
@@ -168,14 +168,16 @@ def test_evidence_pack_persisted_findings_redacted(monkeypatch, guard_setup):
     sensitive_arn = "arn:aws:cloudtrail:us-east-1:123456789012:trail/secret-trail"
     mock_provider = MockCloudProvider(
         {
-            "cloudtrail_trails": [
+            "cloudtrail_enabled": [
                 {
-                    "check": "cloudtrail_trails",
+                    "check": "cloudtrail_enabled",
                     "status": "collected",
                     "resource": sensitive_arn,
                     "detail": {"OwnerId": "123456789012", "SourceIp": "10.0.0.1"},
                 },
             ],
+            "cloudtrail_multi_region": [],
+            "config_recorder_on": [],
         }
     )
     monkeypatch.setattr("spa.skills.evidence_pack.get_cloud_provider", lambda guard=None: mock_provider)
