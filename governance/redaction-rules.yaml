@@ -30,3 +30,12 @@ regex_patterns:
   - name: email
     pattern: "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
     replacement: "[REDACTED_EMAIL]"
+  - name: aws_arn
+    pattern: "arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]{12}:[^\\s\"']*"
+    replacement: "[REDACTED_ARN]"
+  - name: aws_account_id
+    pattern: "\\b[0-9]{12}\\b"
+    replacement: "[REDACTED_ACCOUNT_ID]"
+  - name: ipv4_address
+    pattern: "\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b"
+    replacement: "[REDACTED_IP]"

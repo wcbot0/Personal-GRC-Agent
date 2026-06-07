@@ -4,6 +4,9 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from connectors.cloud.aws.provider import AwsCloudProvider
+from connectors.cloud.gcp.provider import GcpCloudProvider
+from connectors.cloud.none.provider import NoneCloudProvider
 from connectors.comms.none.provider import NoneCommsProvider
 from connectors.comms.slack.provider import SlackCommsProvider
 from connectors.grc.drata.provider import DrataGrcProvider
@@ -24,6 +27,7 @@ if TYPE_CHECKING:
 __all__ = [
     "POST_MVP_ENABLE_MSG",
     "disabled_post_mvp_message",
+    "get_cloud_provider",
     "get_comms_provider",
     "get_grc_provider",
     "get_notes_provider",
@@ -35,6 +39,7 @@ _SAFE_PROVIDERS: dict[str, tuple[str, ...]] = {
     "grc": ("none",),
     "notes": ("filesystem",),
     "comms": ("none",),
+    "cloud": ("none",),
 }
 
 
@@ -99,3 +104,15 @@ def get_comms_provider():
     }
     cls = providers.get(name, NoneCommsProvider)
     return cls()
+
+
+def get_cloud_provider(guard: "ToolGuard | None" = None):
+    name = os.getenv("CLOUD_PROVIDER", "none").lower()
+    _ensure_live_writes("cloud", name)
+    providers = {
+        "none": NoneCloudProvider,
+        "aws": AwsCloudProvider,
+        "gcp": GcpCloudProvider,
+    }
+    cls = providers.get(name, NoneCloudProvider)
+    return cls(guard=guard)
