@@ -1,0 +1,70 @@
+---
+description: inbox, workspace drafts/proposals, and artifact path patterns
+globs: workspace/**/*
+alwaysApply: false
+---
+
+# Workspace — paths and artifact routing
+
+Resolver source: `spa/paths.py`. Env overrides: `SPA_DATA_DIR`, `SPA_AUDIT_DIR`.
+
+## Default paths (no env override)
+
+| Resolver | Path |
+|----------|------|
+| `get_drafts_dir()` | `workspace/.data/drafts/` |
+| `get_proposals_dir()` | `workspace/proposals/` |
+
+Hermes MCP mounts `workspace/drafts/` (not `.data`). Skill default output is `.data/drafts/` — check both or pass `--output-dir workspace/drafts/<skill>`.
+
+## inbox/ → process pipeline
+
+```
+inbox/<descriptive-name>.md
+  └─► spa ingest inbox/<file>
+        → memory (redacted)
+        → meeting-synth → workspace/.data/drafts/meeting-synth/
+        → tickets     → workspace/proposals/tickets/
+        → policy      → workspace/proposals/03-policies/proposals/
+```
+
+Meeting auto-detect: ≥2 of `decisions`, `action items`, `risks`, `transcript`, `meeting`, `attendees`.
+
+## Artifact naming
+
+```
+# Skill JSON (spa run-skill default)
+workspace/.data/drafts/<skill>/<skill>-<YYYYMMDDTHHMMSSZ>.json
+
+# AI-Proposed tickets (A2)
+workspace/proposals/tickets/ticket-proposal-<ticket-id>.json
+# Required: status=ai_proposed, assignee=unassigned
+
+# Policy redline staging
+workspace/proposals/03-policies/proposals/<policy-slug>-redline.md
+workspace/proposals/draft-pr-body-<policy-slug>.md
+
+# Daily brief
+workspace/proposals/daily-brief-<YYYYMMDD>.md
+```
+
+## When editing here
+
+| Action | Do |
+|--------|-----|
+| New raw input | Write to `inbox/`, then `spa ingest` |
+| Meeting / ticket / policy output | Run `spa run-skill` — don't mimic verifier output by hand |
+| Review tickets | Keep `assignee: unassigned`; assignment needs CPO (A3) |
+| Promote policy redline | Move to `brain/03-policies/proposals/` after review |
+| Promote evidence | Move index to `brain/evidence/<CC-slug>/` |
+
+## Explicit skill run
+
+```bash
+source .venv/bin/activate
+spa run-skill meeting-synth --input inbox/notes.md
+spa run-skill ticket-draft --input path/to/issue.md
+spa run-skill policy-redline --input path/to/change.md
+```
+
+Fixtures for input shape: `evals/fixtures/`.

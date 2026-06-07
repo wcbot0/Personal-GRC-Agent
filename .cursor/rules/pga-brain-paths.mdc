@@ -1,0 +1,56 @@
+---
+description: Security Brain layout, naming, and where to store brain content
+globs: brain/**/*
+alwaysApply: false
+---
+
+# Security Brain — paths and conventions
+
+Canonical layout (`brain/00-meta/README.md`):
+
+| Path | Purpose |
+|------|---------|
+| `01-frameworks/` | CSF, SOC 2, ISO overviews and crosswalks |
+| `02-controls/` | Control catalog (`cloud-checks.yaml`) |
+| `03-policies/` | **Authoritative** policies |
+| `03-policies/proposals/` | Draft policy redlines (A1) — promote here after review |
+| `evidence/<CC-slug>/` | Evidence indexes (MVP active path) |
+| `04-standards/` … `08-decisions/` | Standards, procedures, risks, decisions |
+
+## Where to write what
+
+| Content | Path | Notes |
+|---------|------|-------|
+| Policy redline (draft) | `brain/03-policies/proposals/<policy-slug>-redline.md` | kebab-case slug; mark **DRAFT** |
+| Authoritative policy | `brain/03-policies/<policy-slug>.md` | A4 — human publish only |
+| Evidence index | `brain/evidence/<CC-slug>/index-<YYYYMMDD>.md` | slug: dots → hyphens (`CC6.1` → `CC6-1`) |
+| Cloud findings | `brain/evidence/<CC-slug>/findings-<YYYYMMDD>.json` | optional; from evidence-pack |
+| Framework / control docs | `01-frameworks/`, `02-controls/` | human-reviewed brain content |
+
+## Evidence-pack path (governed)
+
+Prefer `spa` with repo root as output so files land in git-backed brain:
+
+```bash
+spa run-skill evidence-pack --input <file> --output-dir .
+# → brain/evidence/CC6-1/index-20260607.md
+```
+
+Input must include `Control: CC6.1` and `Period: 2026-Q2` (or similar).
+
+## Policy redline flow
+
+1. Skill stages at `workspace/proposals/03-policies/proposals/<slug>-redline.md`
+2. After human review → copy/promote to `brain/03-policies/proposals/<slug>-redline.md`
+3. Publish to `brain/03-policies/<slug>.md` only with A4 approval
+
+## After substantive edits
+
+```bash
+make seed   # re-index brain → Qdrant semantic memory
+```
+
+## Control IDs in brain
+
+- SOC 2 CC notation: `CC6.1` in docs; directory slug `CC6-1` under `evidence/`
+- Cloud checks in `02-controls/cloud-checks.yaml` use CC keys per provider (`aws`, `gcp`)
