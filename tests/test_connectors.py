@@ -23,10 +23,9 @@ from connectors.registry import (
     get_ticket_provider,
 )
 from connectors.tickets.jira.provider import JiraTicketProvider
-from connectors.tickets.linear.provider import LinearTicketProvider
 from connectors.tickets.none.provider import NoneTicketProvider
 
-VENDOR_TICKET_STUBS = (LinearTicketProvider, JiraTicketProvider)
+VENDOR_TICKET_STUBS = (JiraTicketProvider,)
 VENDOR_GRC_STUBS = (VantaGrcProvider, DrataGrcProvider, SecureframeGrcProvider)
 VENDOR_NOTES_STUBS = (GranolaNotesProvider,)
 VENDOR_COMMS_STUBS = (SlackCommsProvider,)
