@@ -13,7 +13,7 @@ endif
 
 help:
 	@echo "Security Personal Assistant — common targets"
-	@echo "  make bootstrap     — idempotent setup (venv, deps, docker, seed, selftest)"
+	@echo "  make bootstrap     — idempotent setup (venv, deps, docker, seed, selftest, optional Hermes)"
 	@echo "  make selftest      — run stub + integration self-tests"
 	@echo "  make ingest FILE=   — ingest a file into memory"
 	@echo "  make proposals     — list pending change proposals"

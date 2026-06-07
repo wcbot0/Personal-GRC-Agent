@@ -216,6 +216,24 @@ Bootstrap is **idempotent** and performs:
 4. Starts Docker services (Qdrant on `:6333`, embeddings on `:8080`) — skips with a warning if Docker isn't running
 5. Seeds `brain/` into Qdrant vector memory
 6. Runs health checks (`make selftest`)
+7. **Optional:** prompts to install, wire, and configure [Hermes Agent](#integrating-with-hermes-agent) (skipped in CI or when `HERMES_BOOTSTRAP=0`)
+
+**Hermes bootstrap controls** (interactive terminal only):
+
+| Variable / flag | Behavior |
+|-----------------|----------|
+| *(default)* | After selftest, prompt: install Hermes? → wire MCP → configure model? |
+| `HERMES_BOOTSTRAP=0` | Skip Hermes entirely (spa-only setup) |
+| `HERMES_BOOTSTRAP=1` | Auto-install + wire MCP; skip model wizard |
+| `CI=true` | Skip Hermes (same as `HERMES_BOOTSTRAP=0`) |
+
+```bash
+# spa only — no Hermes prompts
+HERMES_BOOTSTRAP=0 ./bootstrap.sh
+
+# install + wire Hermes without prompts (configure model later: hermes model)
+HERMES_BOOTSTRAP=1 ./bootstrap.sh
+```
 
 If Docker wasn't running during bootstrap, start it later and seed manually:
 
@@ -263,7 +281,7 @@ PGA works in two modes. You can use either one or both:
 | **`spa` CLI** (no Hermes required) | Verifier-gated skills, ToolGuard, hash-chained audit logs, ingest pipeline | Batch drafting, CI, anything that must be auditable |
 | **Hermes Agent** (optional chat runtime) | Conversational assistant with MCP access to your Security Brain | Explore policies, ask questions, iterate in chat |
 
-If you already ran `./bootstrap.sh`, the `spa` side is ready. This section covers wiring in **Hermes** — the [Nous Hermes Agent](https://hermes-agent.nousresearch.com) CLI you may already have installed.
+If you already ran `./bootstrap.sh`, the `spa` side is ready. Bootstrap can also install and wire Hermes interactively (step 7 above). Manual setup below if you skipped or need to re-run wiring.
 
 ### What you need
 
@@ -274,12 +292,20 @@ If you already ran `./bootstrap.sh`, the `spa` side is ready. This section cover
 
 You do **not** need to copy skills or brain content anywhere else. Hermes reads them from this repo.
 
-### Step 1 — Install Hermes (if you don't have it)
+### Step 1 — Install Hermes (if bootstrap did not)
+
+Bootstrap may have installed Hermes for you. Otherwise:
 
 ```bash
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 source ~/.zshrc   # or ~/.bashrc
 hermes --version
+```
+
+Or re-run the install hook:
+
+```bash
+./scripts/install.sh --interactive
 ```
 
 ### Step 2 — Bootstrap PGA (if you haven't yet)
@@ -386,8 +412,8 @@ Example configs for Linear, GitHub, Slack, and GRC tools live in `mcp/` but ship
 
 | Symptom | Fix |
 |---------|-----|
-| `hermes: command not found` | Reload shell (`source ~/.zshrc`) or reinstall Hermes |
-| `Hermes Agent not found` during bootstrap | Expected if Hermes isn't installed yet — bootstrap still works; install Hermes and run `./scripts/setup-hermes.sh` |
+| `hermes: command not found` | Reload shell (`source ~/.zshrc`), re-run `./scripts/install.sh --interactive`, or install manually |
+| Hermes skipped during bootstrap | Expected with `HERMES_BOOTSTRAP=0`, `CI=true`, or non-interactive shell — run `./scripts/install.sh --interactive` |
 | MCP server won't connect | Run `hermes mcp test pga-filesystem`; ensure `npx` works (`node --version`) |
 | Hermes can't see repo files | Re-run `./scripts/setup-hermes.sh` after moving the repo (paths are absolute) |
 | Chat ignores PGA rules | Start `hermes chat` from the repo root (loads `AGENTS.md`) |

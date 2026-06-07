@@ -91,17 +91,17 @@ else
   log "Start Docker Desktop, then run: docker compose up -d && make seed"
 fi
 
-# Runtime install hook (Hermes default; swappable via agent/runtime.config.yaml)
-if [[ -x scripts/install.sh ]]; then
-  log "Running runtime install hook"
-  ./scripts/install.sh || log "Runtime install hook skipped or partial (OK for stub mode)"
-fi
-
 # Seed brain into vector DB
 log "Seeding brain knowledge base"
 "$VENV_PYTHON" scripts/seed_brain.py || log "Seed skipped (services may still be starting)"
 
 log "Running selftest"
 make selftest
+
+# Optional Hermes Agent: install, wire MCP, configure model (after spa is verified)
+if [[ -x scripts/install.sh ]]; then
+  log "Optional Hermes Agent setup"
+  ./scripts/install.sh --interactive || log "Hermes setup skipped or partial (spa CLI is ready)"
+fi
 
 log "Bootstrap complete. See README.md for quickstart."
