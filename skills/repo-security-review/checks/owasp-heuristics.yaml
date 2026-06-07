@@ -1,0 +1,128 @@
+# Lightweight OWASP Top 10 heuristic patterns (not full SAST)
+checks:
+  - id: sql_fstring
+    category: A03 Injection
+    owasp: A03:2021
+    default_risk: high
+    title: SQL query built with f-string or format()
+    patterns:
+      - "(?i)(execute|cursor\\.execute|query)\\s*\\(\\s*f[\"']"
+      - "(?i)SELECT\\s+.*\\+.*(?:request|params|input|user)"
+    extensions: [.py, .js, .ts, .php]
+
+  - id: eval_exec
+    category: A03 Injection
+    owasp: A03:2021
+    default_risk: critical
+    title: Dynamic code execution (eval/exec)
+    patterns:
+      - "\\beval\\s*\\("
+      - "\\bexec\\s*\\("
+    extensions: [.py, .js, .ts]
+
+  - id: xss_innerhtml
+    category: A03 Injection
+    owasp: A03:2021
+    default_risk: high
+    title: DOM XSS via innerHTML or dangerouslySetInnerHTML
+    patterns:
+      - "\\.innerHTML\\s*="
+      - "dangerouslySetInnerHTML"
+    extensions: [.js, .jsx, .ts, .tsx]
+
+  - id: shell_injection
+    category: A03 Injection
+    owasp: A03:2021
+    default_risk: high
+    title: Shell command with dynamic input
+    patterns:
+      - "subprocess\\.(call|run|Popen)\\([^)]*shell\\s*=\\s*True"
+      - "os\\.system\\s*\\(\\s*f[\"']"
+    extensions: [.py]
+
+  - id: pickle_loads
+    category: A08 Software and Data Integrity Failures
+    owasp: A08:2021
+    default_risk: critical
+    title: Unsafe deserialization (pickle)
+    patterns:
+      - "pickle\\.loads\\s*\\("
+      - "pickle\\.load\\s*\\("
+    extensions: [.py]
+
+  - id: yaml_unsafe
+    category: A08 Software and Data Integrity Failures
+    owasp: A08:2021
+    default_risk: high
+    title: Unsafe YAML load without SafeLoader
+    patterns:
+      - "yaml\\.load\\s*\\("
+    extensions: [.py]
+
+  - id: ssrf_fetch
+    category: A10 Server-Side Request Forgery
+    owasp: A10:2021
+    default_risk: high
+    title: HTTP fetch with user-controlled URL
+    patterns:
+      - "(?i)(requests\\.(get|post|put)|fetch|urllib\\.request\\.urlopen)\\s*\\([^)]*(?:request\\.|params|query|url_param|user_input)"
+    extensions: [.py, .js, .ts]
+
+  - id: debug_enabled
+    category: A05 Security Misconfiguration
+    owasp: A05:2021
+    default_risk: medium
+    title: Debug mode enabled in configuration
+    patterns:
+      - "(?i)DEBUG\\s*=\\s*True"
+      - "(?i)\"debug\"\\s*:\\s*true"
+    extensions: [.py, .js, .ts, .json, .yaml, .yml, .env]
+
+  - id: cors_wildcard
+    category: A05 Security Misconfiguration
+    owasp: A05:2021
+    default_risk: medium
+    title: CORS allows all origins
+    patterns:
+      - "(?i)Access-Control-Allow-Origin[\"']?\\s*[:=]\\s*[\"']\\*[\"']"
+      - "(?i)CORS_ORIGIN\\s*=\\s*[\"']\\*[\"']"
+    extensions: [.py, .js, .ts, .json, .yaml, .yml]
+
+  - id: bind_all_interfaces
+    category: A05 Security Misconfiguration
+    owasp: A05:2021
+    default_risk: low
+    title: Service binds to all interfaces
+    patterns:
+      - "0\\.0\\.0\\.0"
+    extensions: [.py, .js, .ts, .yaml, .yml]
+
+  - id: session_insecure
+    category: A07 Identification and Authentication Failures
+    owasp: A07:2021
+    default_risk: medium
+    title: Insecure session cookie configuration
+    patterns:
+      - "(?i)secure\\s*=\\s*False"
+      - "(?i)SESSION_COOKIE_SECURE\\s*=\\s*False"
+      - "(?i)httponly\\s*=\\s*False"
+    extensions: [.py, .js, .ts]
+
+  - id: auth_bypass
+    category: A01 Broken Access Control
+    owasp: A01:2021
+    default_risk: high
+    title: Hardcoded authentication bypass
+    patterns:
+      - "(?i)(admin|master|backdoor)[_-]?(key|token|password)\\s*=\\s*[\"'][^\"']+[\"']"
+    extensions: [.py, .js, .ts, .php]
+
+  - id: weak_crypto
+    category: A02 Cryptographic Failures
+    owasp: A02:2021
+    default_risk: low
+    title: Weak hash algorithm for passwords
+    patterns:
+      - "(?i)(md5|sha1)\\s*\\([^)]*password"
+      - "(?i)hashlib\\.(md5|sha1)\\s*\\("
+    extensions: [.py, .js, .ts]

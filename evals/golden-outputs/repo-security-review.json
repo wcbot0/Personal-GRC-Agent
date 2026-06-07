@@ -1,0 +1,8 @@
+{
+  "required_fields": ["skill", "repo", "summary", "findings", "report_file", "control_tags"],
+  "min_findings": 3,
+  "min_critical": 1,
+  "report_file_contains": "repo-security-review",
+  "summary_contains": ["Findings:"],
+  "min_control_tags": 1
+}

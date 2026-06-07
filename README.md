@@ -118,6 +118,7 @@ Six MVP skills — each passes schema + rubric verifiers before writing artifact
 | **csf-crosswalk** | Artifact → CSF / SOC 2 / 800-53 mapping + gaps | `spa run-skill csf-crosswalk --input <file>` |
 | **daily-brief** | Program status → morning triage brief | `spa run-skill daily-brief --input <file>` |
 | **evidence-pack** | Control + period → evidence index in `brain/evidence/` | `spa run-skill evidence-pack --input <file> --output-dir .` |
+| **risk-analyst** | Product/tool assessment → threat model, FAIR + NIST 800-30 risk register | `spa run-skill risk-analyst --input <file>` |
 
 **Fastest path:** drop raw notes in `inbox/`, then `spa ingest inbox/<file>.md` — auto-detects meetings, runs synth, creates tickets, and triggers policy redlines when relevant.
 
