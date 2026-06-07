@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from connectors.cloud.gcp.client import GcpMcpClient, GcpMcpClientError
+from connectors.cloud.gcp.client import GcpMcpClient
 from connectors.cloud.gcp.config import GcpCloudConfig, GcpCloudConfigError
-from connectors.interfaces.cloud import CloudCapabilities, CloudConnector
+from connectors.interfaces.cloud import CloudCapabilities, CloudConnector, apply_command_params
 from spa.memory.redaction import redact_obj
 
 if TYPE_CHECKING:
@@ -21,10 +21,16 @@ READ_ONLY_CHECKS: dict[str, str] = {
     "cloud_storage_encryption_default": "storage buckets list --format=json",
     "compute_disk_encryption_default": "compute disks list --format=json",
     "security_command_center_enabled": "services list --enabled --filter=name:securitycenter.googleapis.com",
-    "asset_inventory_enabled": "asset assets list",
+    "asset_inventory_enabled": "services list --enabled --filter=name:cloudasset.googleapis.com",
     "cloud_audit_logging_enabled": "logging logs list",
     "log_sink_configured": "logging sinks list",
     "security_command_center_detectors": "scc sources list",
+}
+
+RELEVANT_FIELDS: dict[str, str] = {
+    "cloud_storage_public_access": "iamConfiguration.publicAccessPrevention",
+    "cloud_storage_encryption_default": "encryption.defaultKmsKeyName",
+    "compute_disk_encryption_default": "diskEncryptionKey.kmsKeyName",
 }
 
 
@@ -81,10 +87,7 @@ class GcpCloudProvider(CloudConnector):
             supported = ", ".join(sorted(READ_ONLY_CHECKS))
             raise ValueError(f"Unknown cloud check '{check}'. Supported checks: {supported}")
 
-        params = params or {}
-        if params:
-            for key, value in params.items():
-                command = command.replace(f"{{{key}}}", str(value))
+        command = apply_command_params(command, params or {})
 
         try:
             raw = self._get_client().run_gcloud(command)
@@ -110,6 +113,7 @@ class GcpCloudProvider(CloudConnector):
                     "status": "collected",
                     "resource": _resource_name(item),
                     "detail": item,
+                    **_relevant_evidence(check, item),
                 }
                 for item in payload
                 if isinstance(item, dict)
@@ -148,6 +152,7 @@ class GcpCloudProvider(CloudConnector):
                     "status": "collected",
                     "resource": _resource_name(item),
                     "detail": item,
+                    **_relevant_evidence(check, item),
                 }
                 for item in items
                 if isinstance(item, dict)
@@ -162,6 +167,7 @@ class GcpCloudProvider(CloudConnector):
                     "status": "collected",
                     "resource": _resource_name(item),
                     "detail": item,
+                    **_relevant_evidence(check, item),
                 }
                 for item in policies
                 if isinstance(item, dict)
@@ -176,12 +182,13 @@ class GcpCloudProvider(CloudConnector):
                     "status": "collected",
                     "resource": item.get("name") or item.get("id"),
                     "detail": item,
+                    **_relevant_evidence(check, item),
                 }
                 for item in buckets
                 if isinstance(item, dict)
             ]
 
-        rules = payload.get("firewallRules") or payload.get("items")
+        rules = payload.get("firewallRules")
         if isinstance(rules, list) and check == "firewall_open_ingress":
             return [
                 {
@@ -190,6 +197,7 @@ class GcpCloudProvider(CloudConnector):
                     "status": "collected",
                     "resource": item.get("name") or item.get("id"),
                     "detail": item,
+                    **_relevant_evidence(check, item),
                 }
                 for item in rules
                 if isinstance(item, dict)
@@ -206,7 +214,29 @@ class GcpCloudProvider(CloudConnector):
 
 
 def _resource_name(item: dict[str, Any]) -> str | None:
-    for key in ("name", "email", "displayName", "id", "config.name"):
+    for key in ("name", "email", "displayName", "id"):
         if key in item:
             return str(item[key])
+    config = item.get("config")
+    if isinstance(config, dict) and config.get("name"):
+        return str(config["name"])
     return None
+
+
+def _relevant_evidence(check: str, item: dict[str, Any]) -> dict[str, Any]:
+    field = RELEVANT_FIELDS.get(check)
+    if not field:
+        return {}
+    return {
+        "evidence_field": field,
+        "evidence_value": _nested_value(item, field),
+    }
+
+
+def _nested_value(item: dict[str, Any], path: str) -> Any:
+    current: Any = item
+    for part in path.split("."):
+        if not isinstance(current, dict) or part not in current:
+            return None
+        current = current[part]
+    return current

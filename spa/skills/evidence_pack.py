@@ -10,6 +10,7 @@ from typing import Any
 
 import yaml
 
+from connectors.interfaces.cloud import CloudConfigError
 from connectors.registry import LiveWriteDisabledError, get_cloud_provider
 from spa.memory.redaction import redact_obj, redact_text
 from spa.paths import BRAIN_DIR, rel_to_repo, resolve_output_dir
@@ -106,23 +107,38 @@ def _collect_cloud_findings(
         connector = get_cloud_provider(guard=guard)
     except LiveWriteDisabledError:
         return [], "manual-evidence-only (no cloud provider configured)"
+    except CloudConfigError as exc:
+        return [], _cloud_config_error_status(exc)
 
     if connector.provider == "none":
         return [], "manual-evidence-only (no cloud provider configured)"
 
     findings: list[dict[str, Any]] = []
+    failed_checks: list[str] = []
     for check in checks:
         try:
             batch = connector.collect(check)
-        except RuntimeError:
-            return [], "manual-evidence-only (no cloud provider configured)"
-        except Exception:  # noqa: BLE001
+        except CloudConfigError as exc:
+            return [], _cloud_config_error_status(exc)
+        except RuntimeError as exc:
+            failed_checks.append(f"{check}:{type(exc).__name__}")
+            continue
+        except Exception as exc:  # noqa: BLE001
+            failed_checks.append(f"{check}:{type(exc).__name__}")
             continue
         findings.extend(redact_obj(batch))
 
+    if failed_checks and findings:
+        return findings, f"partial-cloud-evidence-collected (failed checks: {', '.join(failed_checks)})"
+    if failed_checks:
+        return [], f"manual-evidence-only (cloud collection failed: {', '.join(failed_checks)})"
     if findings:
         return findings, "cloud-evidence-collected"
     return [], "manual-evidence-only (cloud checks returned no findings)"
+
+
+def _cloud_config_error_status(exc: CloudConfigError) -> str:
+    return f"cloud-collection-config-error (config_error: {redact_text(str(exc))})"
 
 
 def _build_index_markdown(

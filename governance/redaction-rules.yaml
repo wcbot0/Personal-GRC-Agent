@@ -20,6 +20,9 @@ regex_patterns:
   - name: bearer_token
     pattern: "Bearer\\s+[A-Za-z0-9\\-._~+/]+=*"
     replacement: "Bearer [REDACTED_TOKEN]"
+  - name: gcp_oauth_token
+    pattern: "ya29\\.[A-Za-z0-9._-]+"
+    replacement: "[REDACTED_GCP_TOKEN]"
   - name: private_key_block
     pattern: >-
       -----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----
@@ -33,6 +36,12 @@ regex_patterns:
   - name: aws_arn
     pattern: "arn:aws:[a-z0-9-]+:[a-z0-9-]*:[0-9]{12}:[^\\s\"']*"
     replacement: "[REDACTED_ARN]"
+  - name: gcp_resource_path
+    pattern: "(?<!https:)//[a-z0-9.-]+\\.googleapis\\.com/[^\\s\"']+"
+    replacement: "[REDACTED_GCP_RESOURCE]"
+  - name: gcp_https_resource_url
+    pattern: "https://[a-z0-9.-]+\\.googleapis\\.com/[^\\s\"']+"
+    replacement: "[REDACTED_GCP_RESOURCE]"
   - name: aws_account_id
     pattern: "\\b[0-9]{12}\\b"
     replacement: "[REDACTED_ACCOUNT_ID]"
