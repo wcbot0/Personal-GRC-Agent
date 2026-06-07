@@ -53,6 +53,7 @@ action_classes:
       - merge_pr
       - publish_policy
       - grc_write
+      - create_ticket_live
   A5:
     label: high_risk
     approval: blocked
@@ -83,6 +84,7 @@ tool_mappings:
   merge_pr: A4
   publish_policy: A4
   grc_write: A4
+  create_ticket_live: A4
   memory_forget: A4
   memory_forget_tag: A4
   prod_iam_change: A5
