@@ -1,0 +1,26 @@
+# Control → cloud evidence check mappings by provider.
+# Check names must match connectors/cloud/aws/provider READ_ONLY_CHECKS keys.
+
+controls:
+  CC6.1:
+    description: Logical access — IAM identity and access management
+    checks:
+      aws:
+        - iam_account_summary
+        - iam_password_policy
+        - cloudtrail_trails
+      gcp: []
+  CC6.2:
+    description: Authentication and credential management
+    checks:
+      aws:
+        - iam_password_policy
+      gcp: []
+  CC7.2:
+    description: Security monitoring — detection services
+    checks:
+      aws:
+        - guardduty_detectors
+        - cloudtrail_trails
+        - config_recorders
+      gcp: []
