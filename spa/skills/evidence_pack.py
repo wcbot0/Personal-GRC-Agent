@@ -38,12 +38,16 @@ def _resolve_provider(content: str) -> str:
 
 
 def _resolve_checks(catalog: dict[str, Any], control_id: str, provider: str) -> list[str]:
+    catalog_provider = "aws" if provider == "none" else provider
+    provider_block = catalog.get(catalog_provider) or {}
+    if isinstance(provider_block, dict) and control_id in provider_block:
+        entry = provider_block.get(control_id) or {}
+        return list(entry.get("checks") or [])
+    # Legacy control-first layout (pre-H7); kept for backward compatibility.
     controls = catalog.get("controls") or {}
     entry = controls.get(control_id) or {}
     checks_by_provider = entry.get("checks") or {}
-    catalog_provider = "aws" if provider == "none" else provider
-    raw = checks_by_provider.get(catalog_provider) or []
-    return list(raw)
+    return list(checks_by_provider.get(catalog_provider) or [])
 
 
 def _control_tags(control_id: str) -> list[str]:
