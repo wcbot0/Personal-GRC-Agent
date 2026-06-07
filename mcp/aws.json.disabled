@@ -1,5 +1,16 @@
 {
   "name": "aws-security-audit",
   "enabled": false,
-  "notes": "DISABLED in MVP — cloud findings ingestion deferred"
+  "transport": "stdio",
+  "command": "uvx",
+  "args": [
+    "mcp-proxy-for-aws@latest",
+    "https://aws-mcp.us-east-1.api.aws/mcp",
+    "--read-only"
+  ],
+  "env": {
+    "AWS_PROFILE": "${AWS_PROFILE}",
+    "READ_OPERATIONS_ONLY": "true"
+  },
+  "notes": "DISABLED in MVP — rename to aws.json, set enabled=true, CLOUD_PROVIDER=aws, and connectors.cloud.live_write_enabled in autonomy-policy.yaml. Bind a read-only IAM policy (ReadOnlyAccess or scoped SecurityAudit) to the credential/role."
 }
