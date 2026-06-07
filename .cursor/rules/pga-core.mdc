@@ -1,0 +1,35 @@
+---
+description: PGA draft-by-default, risk gates, and spa CLI for governed work
+alwaysApply: true
+---
+
+# Personal GRC Agent — core rules
+
+Read `AGENTS.md` at session start, then `agent/charter.md` and `agent/autonomy-policy.yaml`.
+
+## Draft-by-default
+
+- **Read freely:** `brain/`, `inbox/`, `workspace/`
+- **Draft only:** `workspace/proposals/`, `workspace/drafts/`, `brain/03-policies/proposals/`, `brain/evidence/`
+- **Never without approved CPO (A3+):** assign tickets, publish policies, merge PRs, live GRC/ticket writes
+- **Never (A5):** delete audit logs or evidence, write to `governance/audit-logs/` directly
+
+## Governed vs chat writes
+
+Use the **`spa` CLI** (with `source .venv/bin/activate`) for ingest, skills, verifiers, and audit trail:
+
+```bash
+spa ingest inbox/<file>.md
+spa run-skill <skill-name> --input <path> [--output-dir <dir>]
+spa proposals list
+```
+
+Do not hand-craft skill JSON or ticket files when verifiers and audit matter — run `spa` instead.
+
+## Path authority
+
+Canonical paths: `spa/paths.py`. Full routing table: `AGENTS.md` § Storage paths.
+
+## Control tags
+
+Use `CSF:…`, `SOC2:CC…`, `800-53:…` in drafts and tickets. Crosswalks: `brain/01-frameworks/`.
