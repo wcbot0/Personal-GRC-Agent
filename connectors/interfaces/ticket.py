@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -31,7 +32,16 @@ class TicketConnector(ABC):
         """MVP: write AI-Proposed unassigned ticket as local file."""
         raise NotImplementedError
 
-    def assign(self, ticket_id: str, assignee: str, *, cpo_approved: bool = False) -> dict[str, Any]:
+    def assign(
+        self,
+        ticket_id: str,
+        assignee: str,
+        *,
+        cpo_approved: bool = False,
+        cpo_id: str | None = None,
+        path: str | Path | None = None,
+        status: str = "assigned",
+    ) -> dict[str, Any]:
         raise PermissionError("assign requires A3 + approved CPO")
 
     def contract(self) -> dict[str, Any]:
