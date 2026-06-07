@@ -11,7 +11,7 @@ import jsonschema
 
 from spa.audit.logger import AuditLogger
 from spa.memory.redaction import redact_obj
-from spa.paths import APPROVAL_QUEUE_DIR, CPO_SCHEMA, get_proposals_dir
+from spa.paths import CPO_SCHEMA, get_approval_queue_dir, get_proposals_dir
 
 
 class ApprovalQueueError(Exception):
@@ -29,7 +29,7 @@ def _allowed_risk_classes(max_risk: str) -> set[str]:
 
 class ApprovalQueue:
     def __init__(self, queue_dir: Path | None = None, audit: AuditLogger | None = None) -> None:
-        self.queue_dir = queue_dir or APPROVAL_QUEUE_DIR
+        self.queue_dir = queue_dir or get_approval_queue_dir()
         self.queue_dir.mkdir(parents=True, exist_ok=True)
         self.audit = audit or AuditLogger()
         self._schema = json.loads(CPO_SCHEMA.read_text())
@@ -227,12 +227,7 @@ class ApprovalQueue:
         change = cpo.get("proposed_change") or {}
 
         if action_type == "assign_human":
-            tool_name = "assign_human"
-            result = guard.execute(
-                tool_name,
-                lambda: self._apply_assign_human(change),
-                cpo_id=cpo_id,
-            )
+            result = self._apply_assign_human(change, cpo_id=cpo_id)
         elif action_type == "skill_verifier_escalation":
             result = {"status": "escalation_acknowledged", **change}
             self.audit.emit(
@@ -277,31 +272,28 @@ class ApprovalQueue:
         )
         return result
 
-    def _apply_assign_human(self, change: dict[str, Any]) -> dict[str, Any]:
+    def _apply_assign_human(self, change: dict[str, Any], *, cpo_id: str) -> dict[str, Any]:
+        from connectors.registry import get_ticket_provider
+        from spa.tools.guard import ToolGuard
+
         assignee = change.get("assignee")
         if not assignee:
             raise ApprovalQueueError("assign_human CPO missing assignee in proposed_change")
 
-        ticket_path = self._resolve_ticket_path(change)
-        if ticket_path is None:
-            return {"assignee": assignee, "status": "assigned"}
+        ticket_id = change.get("ticket_id")
+        if not ticket_id:
+            raise ApprovalQueueError("assign_human CPO missing ticket_id in proposed_change")
 
-        if ticket_path.exists():
-            ticket = json.loads(ticket_path.read_text(encoding="utf-8"))
-            before = ticket.get("assignee", "unassigned")
-            ticket["assignee"] = assignee
-            ticket["status"] = change.get("status", "assigned")
-            ticket_path.parent.mkdir(parents=True, exist_ok=True)
-            ticket_path.write_text(json.dumps(ticket, indent=2), encoding="utf-8")
-            return {
-                "assignee": assignee,
-                "ticket_id": ticket.get("id", change.get("ticket_id")),
-                "path": str(ticket_path),
-                "previous_assignee": before,
-                "status": ticket["status"],
-            }
-
-        return {"assignee": assignee, "status": "assigned"}
+        guard = ToolGuard(queue=self, audit=self.audit)
+        provider = get_ticket_provider(guard=guard)
+        return provider.assign(
+            ticket_id,
+            assignee,
+            cpo_id=cpo_id,
+            cpo_approved=True,
+            path=change.get("path"),
+            status=change.get("status", "assigned"),
+        )
 
     def approve_and_execute(
         self,

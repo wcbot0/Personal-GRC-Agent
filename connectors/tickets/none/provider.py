@@ -60,3 +60,61 @@ class NoneTicketProvider(TicketConnector):
                 },
             )
         return _write()
+
+    def _resolve_ticket_path(self, ticket_id: str, path: str | Path | None = None) -> Path | None:
+        if path:
+            return Path(path)
+        safe_id = str(ticket_id).replace("/", "-")
+        matches = sorted(self.out_dir.glob(f"*{safe_id}*.json"))
+        if matches:
+            return matches[0]
+        candidate = self.out_dir / f"ticket-proposal-{safe_id}.json"
+        return candidate if candidate.exists() else None
+
+    def assign(
+        self,
+        ticket_id: str,
+        assignee: str,
+        *,
+        cpo_approved: bool = False,
+        cpo_id: str | None = None,
+        path: str | Path | None = None,
+        status: str = "assigned",
+    ) -> dict[str, Any]:
+        if not cpo_approved or not cpo_id:
+            raise PermissionError("assign requires A3 + approved CPO")
+
+        def _write() -> dict[str, Any]:
+            ticket_path = self._resolve_ticket_path(ticket_id, path)
+            if ticket_path is None or not ticket_path.exists():
+                return {"assignee": assignee, "ticket_id": ticket_id, "status": status}
+
+            ticket = json.loads(ticket_path.read_text(encoding="utf-8"))
+            before = ticket.get("assignee", "unassigned")
+            ticket["assignee"] = assignee
+            ticket["status"] = status
+            ticket_path.parent.mkdir(parents=True, exist_ok=True)
+            ticket_path.write_text(json.dumps(ticket, indent=2), encoding="utf-8")
+            return {
+                "provider": self.provider,
+                "assignee": assignee,
+                "ticket_id": ticket.get("id", ticket_id),
+                "path": str(ticket_path),
+                "previous_assignee": before,
+                "status": ticket["status"],
+            }
+
+        if self.guard:
+            return self.guard.execute(
+                "assign_human",
+                _write,
+                cpo_id=cpo_id,
+                preview=f"ticket_id={ticket_id} assignee={assignee}",
+                audit_outputs=lambda result: {
+                    "provider": result.get("provider", self.provider),
+                    "ticket_id": result.get("ticket_id", ticket_id),
+                    "assignee": result.get("assignee", assignee),
+                    "path": result.get("path"),
+                },
+            )
+        return _write()
