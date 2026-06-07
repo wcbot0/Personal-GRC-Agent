@@ -191,3 +191,44 @@ def test_evidence_pack_persisted_findings_redacted(monkeypatch, guard_setup):
     assert "123456789012" not in text
     assert "arn:aws:cloudtrail" not in text
     assert "10.0.0.1" not in text
+
+
+def test_evidence_pack_mocked_gcp_includes_findings(monkeypatch, guard_setup):
+    monkeypatch.setenv("CLOUD_PROVIDER", "gcp")
+    guard, _, out_dir = guard_setup
+    project_number = "123456789012"
+    mock_provider = MockCloudProvider(
+        {
+            "iam_mfa_enforced": [
+                {"check": "iam_mfa_enforced", "status": "collected", "detail": {"constraint": "iam.mfaEnforcement"}},
+            ],
+            "service_account_key_inventory": [],
+            "super_admin_inventory": [],
+        }
+    )
+    mock_provider.provider = "gcp"
+
+    def _mock_get_cloud_provider(guard=None):  # noqa: ARG001
+        return mock_provider
+
+    monkeypatch.setattr("spa.skills.evidence_pack.get_cloud_provider", _mock_get_cloud_provider)
+
+    content = "Control: CC6.1\nPeriod: 2026-Q2\nProvider: gcp\n"
+    output = run(content, context={"output_dir": out_dir, "guard": guard})
+
+    _validate_output_schema(output)
+    assert output["provider"] == "gcp"
+    assert len(output["findings"]) >= 1
+    assert output["checks"] == [
+        "iam_mfa_enforced",
+        "service_account_key_inventory",
+        "super_admin_inventory",
+    ]
+
+    serialized = json.dumps(output["findings"])
+    assert project_number not in serialized
+
+    findings_files = list((out_dir / "brain" / "evidence" / "CC6-1").glob("findings-*.json"))
+    assert findings_files
+    persisted = findings_files[0].read_text(encoding="utf-8")
+    assert project_number not in persisted

@@ -1,4 +1,4 @@
-"""Cloud evidence connector tests (mocked MCP/AWS — no real network)."""
+"""Cloud evidence connector tests (mocked MCP/AWS/GCP — no real network)."""
 from __future__ import annotations
 
 import copy
@@ -8,11 +8,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from connectors.cloud.aws.client import AwsMcpClient
 from connectors.cloud.aws.config import AwsCloudConfig, AwsCloudConfigError
 from connectors.cloud.aws.provider import AwsCloudProvider
-from connectors.cloud.gcp.provider import GcpCloudProvider
+from connectors.cloud.gcp.client import GcpMcpClient
+from connectors.cloud.gcp.config import GcpCloudConfig, GcpCloudConfigError
+from connectors.cloud.gcp.provider import READ_ONLY_CHECKS, GcpCloudProvider
 from connectors.cloud.none.provider import NoneCloudProvider
 from connectors.interfaces.cloud import CloudCapabilities, CloudConnector
 from connectors.registry import LiveWriteDisabledError, get_cloud_provider
@@ -20,6 +23,7 @@ from spa.audit.logger import AuditLogger
 from spa.governance.approval_queue import ApprovalQueue
 from spa.governance.policy import AutonomyPolicy
 from spa.memory.redaction import redact_obj
+from spa.paths import ROOT
 from spa.tools.guard import ToolGuard
 
 
@@ -113,13 +117,171 @@ def test_gcp_provider_blocked_by_registry_by_default(monkeypatch):
         get_cloud_provider()
 
 
-def test_gcp_provider_raises_deferred_message():
+def test_gcp_provider_disabled_by_default():
     provider = GcpCloudProvider()
     assert provider.enabled is False
-    with pytest.raises(RuntimeError, match="deferred to H9"):
-        provider.collect("any-check")
-    with pytest.raises(RuntimeError, match="deferred to H9"):
-        provider.list_capabilities()
+    assert provider.provider == "gcp"
+    assert provider.capabilities.read is True
+    assert provider.capabilities.collect is True
+
+
+@pytest.fixture
+def enabled_gcp_config() -> GcpCloudConfig:
+    return GcpCloudConfig(
+        project_id="audit-project",
+        credentials_path="/fake/creds.json",
+        organization_id=None,
+        region="us-central1",
+        mcp_enabled=True,
+        read_operations_only=True,
+    )
+
+
+def _gcp_sink_response(project_number: str = "123456789012") -> dict[str, Any]:
+    return {
+        "output": {
+            "sinks": [
+                {
+                    "name": "audit-logs-sink",
+                    "destination": f"storage.googleapis.com/audit-bucket-{project_number}",
+                    "filter": "logName:cloudaudit",
+                }
+            ]
+        }
+    }
+
+
+def test_missing_gcp_auth_config_raises_clear_error(enabled_gcp_config):
+    cfg = GcpCloudConfig(
+        project_id=None,
+        credentials_path=None,
+        organization_id=None,
+        region="us-central1",
+        mcp_enabled=True,
+    )
+    provider = GcpCloudProvider(config=cfg, client=GcpMcpClient(cfg, invoke=lambda *_: {}))
+    with pytest.raises(GcpCloudConfigError, match="Missing GCP config"):
+        provider.collect("log_sink_configured")
+
+
+def test_gcp_collect_emits_audit_event_and_redacts_findings(
+    guard_setup,
+    enabled_gcp_config,
+):
+    guard, _, audit_dir = guard_setup
+    project_number = "123456789012"
+
+    def invoke(tool: str, params: dict[str, Any]) -> dict[str, Any]:
+        assert tool == "run_gcloud"
+        assert "logging sinks list" in params["cli_command"]
+        return _gcp_sink_response(project_number)
+
+    client = GcpMcpClient(enabled_gcp_config, invoke=invoke)
+    provider = GcpCloudProvider(guard=guard, config=enabled_gcp_config, client=client)
+    findings = provider.collect("log_sink_configured")
+
+    assert findings
+    serialized = json.dumps(findings)
+    assert project_number not in serialized
+    assert "[REDACTED" in serialized
+
+    events = _read_audit_events(audit_dir)
+    collect_events = [e for e in events if e.get("event_type") == "cloud_collect"]
+    assert len(collect_events) == 1
+    assert collect_events[0]["outputs"]["check"] == "log_sink_configured"
+    assert collect_events[0]["outputs"]["finding_count"] == len(findings)
+    assert project_number not in json.dumps(collect_events[0])
+
+
+def test_gcp_collect_normalized_findings(guard_setup, enabled_gcp_config):
+    guard, _, _ = guard_setup
+
+    def invoke(_tool: str, _params: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "output": {
+                "bindings": [
+                    {"role": "roles/owner", "members": ["user:admin@example.com"]},
+                    {"role": "roles/viewer", "members": ["serviceAccount:audit@audit-project.iam.gserviceaccount.com"]},
+                ]
+            }
+        }
+
+    client = GcpMcpClient(enabled_gcp_config, invoke=invoke)
+    provider = GcpCloudProvider(guard=guard, config=enabled_gcp_config, client=client)
+    findings = provider.collect("super_admin_inventory")
+
+    assert len(findings) == 2
+    assert all(item["check"] == "super_admin_inventory" for item in findings)
+    assert {item["resource"] for item in findings} == {"roles/owner", "roles/viewer"}
+
+
+def test_gcp_provider_disabled_when_mcp_config_not_enabled(monkeypatch, live_cloud_policy):
+    monkeypatch.setenv("CLOUD_PROVIDER", "gcp")
+    monkeypatch.setenv("GCP_PROJECT", "audit-project")
+    monkeypatch.setenv("GOOGLE_APPLICATION_CREDENTIALS", "/fake/creds.json")
+    provider = get_cloud_provider()
+    assert provider.enabled is False
+    with pytest.raises(GcpCloudConfigError, match="GCP MCP config is disabled"):
+        provider.collect("log_sink_configured")
+
+
+def test_gcp_selected_with_live_policy_and_mock(
+    monkeypatch,
+    live_cloud_policy,
+    guard_setup,
+    enabled_gcp_config,
+):
+    monkeypatch.setenv("CLOUD_PROVIDER", "gcp")
+    guard, _, audit_dir = guard_setup
+
+    def invoke(_tool: str, _params: dict[str, Any]) -> dict[str, Any]:
+        return _gcp_sink_response()
+
+    client = GcpMcpClient(enabled_gcp_config, invoke=invoke)
+    provider = GcpCloudProvider(guard=guard, config=enabled_gcp_config, client=client)
+    findings = provider.collect("log_sink_configured")
+    assert findings
+    assert any(e.get("event_type") == "cloud_collect" for e in _read_audit_events(audit_dir))
+
+
+def test_gcp_list_capabilities_matches_cloud_checks_yaml():
+    checks_path = ROOT / "brain" / "02-controls" / "cloud-checks.yaml"
+    catalog = yaml.safe_load(checks_path.read_text(encoding="utf-8"))
+    yaml_checks: set[str] = set()
+    for entry in (catalog.get("gcp") or {}).values():
+        yaml_checks.update(entry.get("checks") or [])
+
+    provider = GcpCloudProvider(
+        config=GcpCloudConfig(
+            project_id="audit-project",
+            credentials_path="/fake/creds.json",
+            organization_id=None,
+            region="us-central1",
+            mcp_enabled=True,
+        )
+    )
+    assert sorted(provider.list_capabilities()) == sorted(yaml_checks)
+
+
+def test_gcp_collect_error_emits_audit_event(guard_setup, enabled_gcp_config):
+    guard, _, audit_dir = guard_setup
+
+    def invoke(_tool: str, _params: dict[str, Any]) -> dict[str, Any]:
+        raise RuntimeError("simulated MCP failure")
+
+    client = GcpMcpClient(enabled_gcp_config, invoke=invoke)
+    provider = GcpCloudProvider(guard=guard, config=enabled_gcp_config, client=client)
+
+    with pytest.raises(RuntimeError, match="GCP MCP collect failed"):
+        provider.collect("log_sink_configured")
+
+    events = _read_audit_events(audit_dir)
+    error_events = [
+        e
+        for e in events
+        if e.get("event_type") == "cloud_collect" and e.get("outputs", {}).get("status") == "error"
+    ]
+    assert len(error_events) == 1
 
 
 def test_cloud_connector_exposes_no_write_or_mutate_methods():
