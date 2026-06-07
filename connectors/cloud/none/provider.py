@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from spa.tools.guard import ToolGuard
 
 _NO_PROVIDER_MSG = (
-    "No cloud provider configured. Set CLOUD_PROVIDER=aws (or gcp post-H9) "
+    "No cloud provider configured. Set CLOUD_PROVIDER=aws or CLOUD_PROVIDER=gcp "
     "and enable the provider in autonomy-policy.yaml to collect cloud evidence."
 )
 

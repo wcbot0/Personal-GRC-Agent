@@ -41,4 +41,34 @@ aws:
     checks:
       - guardduty_detectors
 
-gcp: {}
+gcp:
+  CC6.1:
+    description: Logical access — IAM MFA, service account keys, super-admin bindings
+    checks:
+      - iam_mfa_enforced
+      - service_account_key_inventory
+      - super_admin_inventory
+  CC6.6:
+    description: Boundary protection — public exposure
+    checks:
+      - cloud_storage_public_access
+      - firewall_open_ingress
+  CC6.7:
+    description: Encryption in transit/at rest
+    checks:
+      - cloud_storage_encryption_default
+      - compute_disk_encryption_default
+  CC6.8:
+    description: Malware and unauthorized software — threat detection
+    checks:
+      - security_command_center_detectors
+  CC7.1:
+    description: Configuration monitoring — drift and vulnerability introduction
+    checks:
+      - security_command_center_enabled
+      - asset_inventory_enabled
+  CC7.2:
+    description: Monitoring — logging enabled
+    checks:
+      - cloud_audit_logging_enabled
+      - log_sink_configured
