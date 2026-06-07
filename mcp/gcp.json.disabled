@@ -1,0 +1,16 @@
+{
+  "name": "gcp-security-audit",
+  "enabled": false,
+  "transport": "stdio",
+  "command": "uvx",
+  "args": [
+    "gcp-mcp-server@latest",
+    "--read-only"
+  ],
+  "env": {
+    "GCP_PROJECT": "${GCP_PROJECT}",
+    "GOOGLE_APPLICATION_CREDENTIALS": "${GOOGLE_APPLICATION_CREDENTIALS}",
+    "READ_OPERATIONS_ONLY": "true"
+  },
+  "notes": "DISABLED in MVP — rename to gcp.json, set enabled=true, CLOUD_PROVIDER=gcp, and connectors.cloud.live_write_enabled in autonomy-policy.yaml. Bind a read-only IAM role (Viewer or scoped auditor) to the service account."
+}
