@@ -14,6 +14,7 @@ from spa.skills.runner import run_skill
 from spa.skills.ticket_draft import create_proposal
 from spa.tools.guard import ToolGuard
 from spa.tools.write import guarded_write
+from spa.workflows.ticket_gating import propose_assign_human_cpos
 
 
 MEETING_SIGNALS = (
@@ -126,6 +127,7 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
         "content_preview": redacted[:200],
         "meeting_synth": None,
         "ticket_proposals": [],
+        "pending_cpos": [],
         "policy_redline": None,
         "verifications": [],
         "artifact_dirs": {
@@ -187,6 +189,12 @@ def ingest_file(path: str | Path, audit: AuditLogger | None = None) -> dict:
                 },
                 preview=f"ticket_id={proposal['ticket']['id']}",
             )
+
+        result["pending_cpos"] = propose_assign_human_cpos(
+            result["ticket_proposals"],
+            guard=guard,
+            queue=guard.queue,
+        )
 
         policy_text = _policy_change_text(redacted, meeting_result["output"].get("action_items", []))
         if policy_text:

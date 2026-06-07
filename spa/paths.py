@@ -50,6 +50,16 @@ def get_drafts_dir() -> Path:
     return get_data_dir() / "drafts"
 
 
+def get_approval_queue_dir() -> Path:
+    override = os.environ.get("SPA_APPROVAL_QUEUE_DIR")
+    if override:
+        return Path(override)
+    data = os.environ.get("SPA_DATA_DIR")
+    if data:
+        return Path(data) / "approval-queue"
+    return APPROVAL_QUEUE_DIR
+
+
 def resolve_output_dir(context: dict | None) -> Path:
     """Skill write root: harness output_dir, else env-configurable proposals dir."""
     if context and context.get("output_dir"):
