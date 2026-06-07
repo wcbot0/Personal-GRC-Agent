@@ -38,7 +38,7 @@ Collected findings are passed through `spa.memory.redaction.redact_obj` before r
 | `cloud_storage_encryption_default` | `storage buckets list --format=json` |
 | `compute_disk_encryption_default` | `compute disks list --format=json` |
 | `security_command_center_enabled` | `services list --enabled --filter=name:securitycenter.googleapis.com` |
-| `asset_inventory_enabled` | `asset assets list` |
+| `asset_inventory_enabled` | `services list --enabled --filter=name:cloudasset.googleapis.com` |
 | `cloud_audit_logging_enabled` | `logging logs list` |
 | `log_sink_configured` | `logging sinks list` |
 | `security_command_center_detectors` | `scc sources list` |

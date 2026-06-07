@@ -17,6 +17,16 @@ def test_redaction_strips_secrets():
     assert "SUPER_SECRET_TOKEN" not in redacted
 
 
+def test_redaction_preserves_cpo_ids_with_numeric_uuid_segments():
+    cpo_id = "cpo-70c53b98-de1c-4ac6-890b-123456789012"
+    arn = "arn:aws:cloudtrail:us-east-1:123456789012:trail/org-trail"
+    redacted = redact_text(f"{cpo_id} account=123456789012 arn={arn}")
+
+    assert cpo_id in redacted
+    assert "account=[REDACTED_ACCOUNT_ID]" in redacted
+    assert arn not in redacted
+
+
 def test_ingest_redacts_before_persist(tmp_path, monkeypatch):
     data_dir = tmp_path / "data"
     monkeypatch.setenv("SPA_DATA_DIR", str(data_dir))
