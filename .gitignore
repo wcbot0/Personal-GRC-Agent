@@ -1,6 +1,10 @@
 # Secrets and local state
 .env
 secrets/
+# Live MCP configs may carry local credentials; keep disabled templates tracked.
+mcp/*.json
+mcp/**/*.json
+!mcp/filesystem.json
 workspace/.data/
 governance/audit-logs/
 governance/approval-queue/
