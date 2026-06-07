@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from connectors.cloud.aws.client import AwsMcpClient
 from connectors.cloud.aws.config import AwsCloudConfig, AwsCloudConfigError
-from connectors.interfaces.cloud import CloudCapabilities, CloudConnector
+from connectors.interfaces.cloud import CloudCapabilities, CloudConnector, apply_command_params
 from spa.memory.redaction import redact_obj
 
 if TYPE_CHECKING:
@@ -74,10 +74,7 @@ class AwsCloudProvider(CloudConnector):
             supported = ", ".join(sorted(READ_ONLY_CHECKS))
             raise ValueError(f"Unknown cloud check '{check}'. Supported checks: {supported}")
 
-        params = params or {}
-        if params:
-            for key, value in params.items():
-                command = command.replace(f"{{{key}}}", str(value))
+        command = apply_command_params(command, params or {})
 
         try:
             raw = self._get_client().call_aws(command)
@@ -177,3 +174,5 @@ class AwsCloudProvider(CloudConnector):
                 "detail": payload,
             }
         ]
+
+

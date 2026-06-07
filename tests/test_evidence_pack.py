@@ -8,7 +8,7 @@ from typing import Any
 import jsonschema
 import pytest
 
-from connectors.interfaces.cloud import CloudCapabilities, CloudConnector
+from connectors.interfaces.cloud import CloudCapabilities, CloudConfigError, CloudConnector
 from spa.audit.logger import AuditLogger
 from spa.governance.approval_queue import ApprovalQueue
 from spa.memory.redaction import redact_obj
@@ -19,15 +19,24 @@ from spa.tools.guard import ToolGuard
 
 
 class MockCloudProvider(CloudConnector):
-    def __init__(self, findings_by_check: dict[str, list[dict[str, Any]]] | None = None) -> None:
+    def __init__(
+        self,
+        findings_by_check: dict[str, list[dict[str, Any]]] | None = None,
+        *,
+        provider: str = "aws",
+        errors_by_check: dict[str, Exception] | None = None,
+    ) -> None:
         super().__init__(
-            provider="aws",
+            provider=provider,
             enabled=True,
             capabilities=CloudCapabilities(read=True, collect=True),
         )
         self._findings_by_check = findings_by_check or {}
+        self._errors_by_check = errors_by_check or {}
 
     def collect(self, check: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        if check in self._errors_by_check:
+            raise self._errors_by_check[check]
         return redact_obj(list(self._findings_by_check.get(check, [])))
 
     def list_capabilities(self) -> list[str]:
@@ -232,3 +241,89 @@ def test_evidence_pack_mocked_gcp_includes_findings(monkeypatch, guard_setup):
     assert findings_files
     persisted = findings_files[0].read_text(encoding="utf-8")
     assert project_number not in persisted
+
+
+def test_evidence_pack_surfaces_cloud_config_errors(monkeypatch, guard_setup):
+    monkeypatch.setenv("CLOUD_PROVIDER", "gcp")
+    guard, _, out_dir = guard_setup
+    mock_provider = MockCloudProvider(
+        provider="gcp",
+        errors_by_check={"iam_mfa_enforced": CloudConfigError("missing GCP auth")},
+    )
+    monkeypatch.setattr("spa.skills.evidence_pack.get_cloud_provider", lambda guard=None: mock_provider)
+
+    content = "Control: CC6.1\nPeriod: 2026-Q2\nProvider: gcp\n"
+    output = run(content, context={"output_dir": out_dir, "guard": guard})
+
+    assert output["findings"] == []
+    index_path = out_dir / "brain" / "evidence" / "CC6-1" / Path(output["index_file"]).name
+    index_text = index_path.read_text(encoding="utf-8")
+    assert "cloud-collection-config-error" in index_text
+    assert "config_error" in index_text
+
+
+def test_evidence_pack_surfaces_provider_construction_config_errors(monkeypatch, guard_setup):
+    monkeypatch.setenv("CLOUD_PROVIDER", "gcp")
+    guard, _, out_dir = guard_setup
+
+    def _raise_config_error(guard=None):  # noqa: ARG001
+        raise CloudConfigError("invalid MCP config token=ya29.a0AfH6SMBEXAMPLE")
+
+    monkeypatch.setattr("spa.skills.evidence_pack.get_cloud_provider", _raise_config_error)
+
+    content = "Control: CC6.1\nPeriod: 2026-Q2\nProvider: gcp\n"
+    output = run(content, context={"output_dir": out_dir, "guard": guard})
+
+    assert output["findings"] == []
+    index_path = out_dir / "brain" / "evidence" / "CC6-1" / Path(output["index_file"]).name
+    index_text = index_path.read_text(encoding="utf-8")
+    assert "cloud-collection-config-error" in index_text
+    assert "config_error" in index_text
+    assert "ya29." not in index_text
+
+
+def test_evidence_pack_surfaces_partial_cloud_collection(monkeypatch, guard_setup):
+    monkeypatch.setenv("CLOUD_PROVIDER", "gcp")
+    guard, _, out_dir = guard_setup
+    mock_provider = MockCloudProvider(
+        {
+            "iam_mfa_enforced": [
+                {"check": "iam_mfa_enforced", "status": "collected", "detail": {"constraint": "iam.mfaEnforcement"}},
+            ],
+        },
+        provider="gcp",
+        errors_by_check={"service_account_key_inventory": RuntimeError("simulated MCP failure")},
+    )
+    monkeypatch.setattr("spa.skills.evidence_pack.get_cloud_provider", lambda guard=None: mock_provider)
+
+    content = "Control: CC6.1\nPeriod: 2026-Q2\nProvider: gcp\n"
+    output = run(content, context={"output_dir": out_dir, "guard": guard})
+
+    assert len(output["findings"]) == 1
+    index_path = out_dir / "brain" / "evidence" / "CC6-1" / Path(output["index_file"]).name
+    index_text = index_path.read_text(encoding="utf-8")
+    assert "partial-cloud-evidence-collected" in index_text
+    assert "service_account_key_inventory:RuntimeError" in index_text
+
+
+def test_evidence_pack_surfaces_all_cloud_checks_failed(monkeypatch, guard_setup):
+    monkeypatch.setenv("CLOUD_PROVIDER", "gcp")
+    guard, _, out_dir = guard_setup
+    mock_provider = MockCloudProvider(
+        provider="gcp",
+        errors_by_check={
+            "iam_mfa_enforced": RuntimeError("simulated MCP failure"),
+            "service_account_key_inventory": RuntimeError("simulated MCP failure"),
+            "super_admin_inventory": RuntimeError("simulated MCP failure"),
+        },
+    )
+    monkeypatch.setattr("spa.skills.evidence_pack.get_cloud_provider", lambda guard=None: mock_provider)
+
+    content = "Control: CC6.1\nPeriod: 2026-Q2\nProvider: gcp\n"
+    output = run(content, context={"output_dir": out_dir, "guard": guard})
+
+    assert output["findings"] == []
+    index_path = out_dir / "brain" / "evidence" / "CC6-1" / Path(output["index_file"]).name
+    index_text = index_path.read_text(encoding="utf-8")
+    assert "manual-evidence-only (cloud collection failed:" in index_text
+    assert "iam_mfa_enforced:RuntimeError" in index_text
