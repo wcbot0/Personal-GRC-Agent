@@ -29,6 +29,8 @@ SKILL_MODULES = {
     "csf-crosswalk": "spa.skills.csf_crosswalk",
     "daily-brief": "spa.skills.daily_brief",
     "evidence-pack": "spa.skills.evidence_pack",
+    "risk-analyst": "spa.skills.risk_analyst",
+    "repo-security-review": "spa.skills.repo_security_review",
 }
 
 

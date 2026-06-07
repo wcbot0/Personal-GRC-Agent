@@ -22,6 +22,8 @@ SKILLS = {
     "csf-crosswalk": "evals/fixtures/crosswalk_input.md",
     "daily-brief": "evals/fixtures/daily_brief_context.md",
     "evidence-pack": "evals/fixtures/evidence_pack_input.md",
+    "risk-analyst": "evals/fixtures/risk_analyst_input.md",
+    "repo-security-review": "evals/fixtures/repo_security_review_input.md",
 }
 
 M3_MIN_FIRST_PASS_RATE = float(os.environ.get("SPA_M3_MIN_FIRST_PASS_RATE", "1.0"))
@@ -77,6 +79,50 @@ def score_output(skill: str, output: dict, verifications: list[dict]) -> list[st
         needle = golden.get("index_file_contains", "")
         if needle and needle not in output.get("index_file", ""):
             errors.append(f"{skill}: index_file path unexpected")
+        if len(output.get("control_tags", [])) < golden.get("min_control_tags", 1):
+            errors.append(f"{skill}: expected control tags")
+
+    if skill == "risk-analyst":
+        if len(output.get("risk_scenarios", [])) < golden.get("min_scenarios", 1):
+            errors.append(f"{skill}: expected min risk scenarios")
+        for scenario in output.get("risk_scenarios", []):
+            fair = scenario.get("fair", {})
+            nist = scenario.get("nist_800_30", {})
+            for key, val in fair.items():
+                if not isinstance(val, int) or val < golden.get("score_min", 1) or val > golden.get("score_max", 5):
+                    errors.append(f"{skill}: fair.{key} out of range: {val}")
+            for key in ("likelihood", "impact", "inherent_risk", "residual_risk"):
+                val = nist.get(key)
+                if not isinstance(val, int) or val < golden.get("score_min", 1) or val > golden.get("score_max", 5):
+                    errors.append(f"{skill}: nist_800_30.{key} out of range: {val}")
+        methodology = output.get("methodology", [])
+        needle = golden.get("methodology_contains", "")
+        if needle and not any(needle in m for m in methodology):
+            errors.append(f"{skill}: methodology missing '{needle}'")
+        tm = output.get("threat_model", {})
+        if len(tm.get("stride_threats", [])) < golden.get("min_stride_threats", 3):
+            errors.append(f"{skill}: expected min STRIDE threats")
+        if len(output.get("implementation_plan", [])) < golden.get("min_implementation_items", 1):
+            errors.append(f"{skill}: expected implementation plan items")
+        min_exec = golden.get("executive_summary_min_length", 0)
+        if min_exec and len(output.get("executive_summary", "")) < min_exec:
+            errors.append(f"{skill}: executive_summary too short")
+        tm_file = golden.get("threat_model_file_contains", "")
+        if tm_file and tm_file not in output.get("threat_model_file", ""):
+            errors.append(f"{skill}: threat_model_file path unexpected")
+
+    if skill == "repo-security-review":
+        if len(output.get("findings", [])) < golden.get("min_findings", 1):
+            errors.append(f"{skill}: expected min findings")
+        critical = sum(1 for f in output.get("findings", []) if f.get("risk") == "critical")
+        if critical < golden.get("min_critical", 0):
+            errors.append(f"{skill}: expected min critical findings")
+        needle = golden.get("report_file_contains", "")
+        if needle and needle not in output.get("report_file", ""):
+            errors.append(f"{skill}: report_file path unexpected")
+        for phrase in golden.get("summary_contains", []):
+            if phrase not in output.get("summary", ""):
+                errors.append(f"{skill}: summary missing '{phrase}'")
         if len(output.get("control_tags", [])) < golden.get("min_control_tags", 1):
             errors.append(f"{skill}: expected control tags")
 

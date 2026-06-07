@@ -42,6 +42,46 @@ PATTERNS = [
 ]
 
 
+def scan_text_for_secrets(text: str) -> list[tuple[str, int]]:
+    """Return (label, line_number) for each pattern match in text."""
+    hits: list[tuple[str, int]] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        for pattern, label in PATTERNS:
+            if pattern.search(line):
+                hits.append((label, line_no))
+                break
+    return hits
+
+
+def scan_repo(root: Path, *, skip_prefixes: tuple[str, ...] = ()) -> list[str]:
+    """Scan a repository root and return human-readable finding strings."""
+    findings: list[str] = []
+    prefixes = SKIP_DIR_PREFIXES + skip_prefixes
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            rel = path.relative_to(root)
+        except ValueError:
+            continue
+        if any(part in SKIP_DIR_NAMES for part in rel.parts):
+            continue
+        rel_str = str(rel)
+        if any(rel_str.startswith(prefix) for prefix in prefixes):
+            continue
+        if path.suffix in {".png", ".jpg", ".gif", ".woff", ".woff2", ".pyc"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "REDACTED" in text or "example" in rel_str.lower():
+            continue
+        for label, line_no in scan_text_for_secrets(text):
+            findings.append(f"{rel}:{line_no}: {label}")
+    return findings
+
+
 def should_scan(path: Path) -> bool:
     rel = path.relative_to(ROOT)
     if any(part in SKIP_DIR_NAMES for part in rel.parts):
@@ -55,23 +95,9 @@ def should_scan(path: Path) -> bool:
 
 
 def main() -> int:
-    findings: list[str] = []
-    for path in ROOT.rglob("*"):
-        if not path.is_file() or not should_scan(path):
-            continue
-        rel = str(path.relative_to(ROOT))
-        if rel in SKIP_FILES:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        for pattern, label in PATTERNS:
-            if pattern.search(text):
-                # Allow intentional examples in redaction rules / tests
-                if "REDACTED" in text or "example" in str(path):
-                    continue
-                findings.append(f"{path.relative_to(ROOT)}: {label}")
+    findings = scan_repo(ROOT)
+    for rel in SKIP_FILES:
+        findings = [f for f in findings if not f.startswith(f"{rel}:")]
 
     if findings:
         for f in findings:
