@@ -1,0 +1,4 @@
+- require: findings
+- require: summary
+- require: report_file
+- require: control_tags

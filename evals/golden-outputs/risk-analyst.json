@@ -1,0 +1,22 @@
+{
+  "required_fields": [
+    "product",
+    "vendor",
+    "executive_summary",
+    "product_profile",
+    "threat_model",
+    "implementation_plan",
+    "risk_scenarios",
+    "summary",
+    "control_tags",
+    "artifact_file",
+    "threat_model_file"
+  ],
+  "min_scenarios": 1,
+  "min_stride_threats": 3,
+  "min_implementation_items": 1,
+  "score_min": 1,
+  "score_max": 5,
+  "methodology_contains": "NIST-SP-800-30",
+  "executive_summary_min_length": 50
+}

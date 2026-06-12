@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["skill", "repo", "summary", "findings", "report_file", "control_tags"],
+  "properties": {
+    "skill": { "const": "repo-security-review" },
+    "repo": { "type": "string", "minLength": 1 },
+    "repo_path": { "type": "string" },
+    "scope": { "type": "string" },
+    "branch": { "type": "string" },
+    "summary": { "type": "string", "minLength": 10 },
+    "report_file": { "type": "string", "minLength": 1 },
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "risk",
+          "category",
+          "title",
+          "location",
+          "owasp",
+          "asvs",
+          "exploitability",
+          "control_tags"
+        ],
+        "properties": {
+          "risk": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low", "info"]
+          },
+          "category": { "type": "string" },
+          "title": { "type": "string" },
+          "location": { "type": "string" },
+          "owasp": { "type": "string" },
+          "asvs": { "type": "string" },
+          "attack": { "type": "string" },
+          "exploitability": { "type": "string" },
+          "control_tags": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "scan_coverage": {
+      "type": "object",
+      "properties": {
+        "files_scanned": { "type": "integer" },
+        "checks_run": { "type": "array", "items": { "type": "string" } },
+        "dependency_tools": { "type": "object" }
+      }
+    },
+    "control_tags": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    }
+  }
+}

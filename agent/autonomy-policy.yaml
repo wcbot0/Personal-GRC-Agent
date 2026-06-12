@@ -87,6 +87,9 @@ tool_mappings:
   create_draft_pr: A2
   create_ticket_draft: A2
   create_grc_draft: A2
+  create_risk_proposal: A2
+  create_risk_report: A1
+  run_dependency_audit: A1
   assign_human: A3
   raise_priority: A3
   merge_pr: A4
