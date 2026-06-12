@@ -1,0 +1,8 @@
+{
+  "name": "pga-governed",
+  "enabled": true,
+  "transport": "stdio",
+  "command": ".venv/bin/spa",
+  "args": ["mcp", "serve"],
+  "notes": "Governed PGA tools via ToolGuard, verifiers, and hash-chained audit. Prefer over raw filesystem MCP for skill runs and ingest."
+}
