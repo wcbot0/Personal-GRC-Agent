@@ -57,6 +57,12 @@ Vendor questionnaire / artifact crosswalk
 Audit evidence for a control + period
   └─► spa run-skill evidence-pack --input <control+period.md> --output-dir .
 
+Commercial product/tool risk assessment (findings + gaps)
+  └─► spa run-skill risk-analyst --input <assessment.md>
+
+Open-source / local repo security review (OWASP, ASVS, dependencies)
+  └─► spa run-skill repo-security-review --input <repo-target.md>
+
 Program status / morning triage
   └─► spa run-skill daily-brief --input <context.md>
 ```
@@ -167,6 +173,26 @@ spa run-skill evidence-pack --input <file> --output-dir .
 
 Default `--output-dir` nests under `workspace/.data/drafts/evidence-pack/brain/evidence/...` — fine for staging, not for committed evidence.
 
+#### Risk assessment (via `risk-analyst` skill)
+
+```
+workspace/proposals/risks/risk-proposal-<id>.json
+workspace/proposals/risks/risk-assessment-<product-slug>.md
+workspace/proposals/risks/threat-model-<product-slug>.md
+# Input: Product/Vendor + ## Findings and/or ## Gaps; optional ## Architecture, ## Integrations, ## Research notes
+# Methodology: NIST SP 800-30 + FAIR-aligned semi-quantitative (1–5) + STRIDE threat model
+```
+
+Promote reviewed assessments to `brain/06-risks/<risk-slug>.md`.
+
+#### Repo security review (via `repo-security-review` skill)
+
+```
+workspace/proposals/repo-security-review-<YYYYMMDD>.md
+workspace/.data/drafts/repo-security-review/repo-security-review-<timestamp>.json
+# Input: Repo: <path or https URL>, optional Branch:, Focus:
+```
+
 #### Daily brief
 
 ```
@@ -223,6 +249,8 @@ All skills: `spa run-skill <name> --input <path> [--output-dir <dir>]`
 | `csf-crosswalk` | Policy excerpt / vendor artifact | control_mappings, gaps | skill JSON artifact only |
 | `daily-brief` | Optional context note | `daily-brief-*.md` | `workspace/proposals/` |
 | `evidence-pack` | `Control: …` + `Period: …` (+ optional `Provider: aws`) | evidence index (+ findings JSON) | use `--output-dir .` for `brain/evidence/` |
+| `risk-analyst` | Product/vendor + findings/gaps + optional architecture | risk proposal, assessment report, STRIDE threat model, implementation plan | `workspace/proposals/risks/` |
+| `repo-security-review` | `Repo:` path or Git URL + optional `Focus:` | risk-scored findings JSON, brief report with ATT&CK mapping | `workspace/proposals/` |
 
 Skill definitions (schemas, rubrics): `skills/<skill-name>/`. Python implementations: `spa/skills/`.
 
@@ -292,6 +320,8 @@ spa run-skill ticket-draft --input evals/fixtures/ticket_input.md
 spa run-skill policy-redline --input evals/fixtures/policy_change.md
 spa run-skill csf-crosswalk --input evals/fixtures/crosswalk_input.md
 spa run-skill evidence-pack --input evals/fixtures/evidence_pack_input.md --output-dir .
+spa run-skill risk-analyst --input evals/fixtures/risk_analyst_input.md
+spa run-skill repo-security-review --input evals/fixtures/repo_security_review_input.md
 spa run-skill daily-brief --input evals/fixtures/daily_brief_context.md
 ```
 

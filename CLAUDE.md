@@ -29,7 +29,7 @@ spa proposals list                # pending CPOs
 spa audit verify                  # hash chain integrity
 ```
 
-Skills: `meeting-synth`, `ticket-draft`, `policy-redline`, `csf-crosswalk`, `daily-brief`, `evidence-pack`
+Skills: `meeting-synth`, `ticket-draft`, `policy-redline`, `csf-crosswalk`, `daily-brief`, `evidence-pack`, `risk-analyst`
 
 ---
 
