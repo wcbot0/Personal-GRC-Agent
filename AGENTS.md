@@ -22,6 +22,7 @@ At the start of every session:
 | Mode | Use when | Gets you |
 |------|----------|----------|
 | **`spa` CLI** (preferred for real work) | Producing auditable artifacts, ingest, skills, CPO workflow | ToolGuard, redaction-at-write, verifier gates, hash-chained audit logs |
+| **`spa mcp serve`** (governed MCP) | Chat clients (Hermes, Claude Desktop, Cursor MCP) needing audited tool calls | Same governance spine as CLI — ingest, skills, proposals, audit, memory search |
 | **Direct file/MCP writes** (Hermes, Cursor, Claude Code) | Exploration, ad-hoc notes, quick drafts in allowed surfaces | Fast iteration — **no verifier or audit trail** unless you also run `spa` |
 
 **Rule:** Chat agents may read freely and draft in allowed paths. For meeting synthesis, ticket proposals, policy redlines, or anything that must pass verifiers and land in the audit chain, run `spa ingest` or `spa run-skill` — do not hand-write the same artifacts.
@@ -387,6 +388,7 @@ spa run-skill <skill> --input <path> --output-dir <dir>
 
 spa proposals list|show|approve|reject     # CPO workflow
 spa audit verify [--from DATE] [--to DATE] # hash chain check
+spa mcp serve                              # governed MCP server (stdio)
 spa evidence export --output <file.tar.gz> # auditor bundle
 
 make seed      # re-index brain → Qdrant
@@ -413,7 +415,22 @@ make eval      # golden skill evals
 
 ## Hermes / Cursor / Claude Code
 
-- **Hermes:** Launch from repo root (`hermes chat`) so this file loads. MCP filesystem covers `brain/`, `inbox/`, `workspace/drafts/` — run `spa` for governed pipeline output.
+### Connect any MCP client (governed)
+
+`spa mcp serve` exposes ToolGuard-wrapped tools over stdio (FastMCP). Config: `mcp/pga-governed.json`.
+
+| Tool | Delegates to |
+|------|----------------|
+| `pga_ingest` | `spa ingest` |
+| `pga_run_skill` | `spa run-skill` |
+| `pga_proposals_list` / `pga_proposals_show` | approval queue reads |
+| `pga_proposals_approve` / `pga_proposals_reject` | CPO workflow (**A3** — requires `confirm: true`; clients must surface to human) |
+| `pga_audit_verify` | hash chain verify |
+| `pga_memory_search` | episodic FTS + semantic search |
+
+Wire Hermes: `./scripts/setup-hermes.sh` registers `pga-governed` and demotes raw filesystem to `brain/` read-only browse.
+
+- **Hermes:** Launch from repo root (`hermes chat`) so this file loads. Prefer **`pga-governed`** MCP for ingest/skills; raw filesystem is read-only `brain/` browse.
 - **Cursor / Claude Code:** This `AGENTS.md` is the workspace rule source. Follow draft-by-default; use terminal `spa` commands for verifiable skill runs.
 - **Cursor rules:** File-scoped path guidance in `.cursor/rules/` — `pga-core.mdc` (always on), `pga-brain-paths.mdc`, `pga-workspace-paths.mdc`, `pga-inbox-paths.mdc`.
 - **Both:** Explore in chat → execute with `spa` → review artifacts → human approves CPOs for anything A3+.

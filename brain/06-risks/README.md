@@ -1,6 +1,6 @@
 # Risk Register (`brain/06-risks/`)
 
-Git-backed risk register for assessed scenarios and treatment status.
+Git-backed risk register for assessed scenarios and treatment status. Use consistent IDs and tie entries to control tags (CSF, SOC 2, 800-53) where applicable. Major risk acceptances belong in `08-decisions/`.
 
 ## Layout (planned)
 

@@ -69,6 +69,14 @@ tool_mappings:
   read_file: A0
   search_memory: A0
   ingest_file: A0
+  pga_ingest: A0
+  pga_proposals_list: A0
+  pga_proposals_show: A0
+  pga_audit_verify: A0
+  pga_memory_search: A0
+  pga_run_skill: A1
+  pga_proposals_approve: A3
+  pga_proposals_reject: A3
   memory_episodic_write: A0
   memory_semantic_upsert: A0
   write_draft_file: A1

@@ -9,5 +9,6 @@ Canonical git-backed knowledge base for SPA. Obsidian optional.
 - `04-standards/` — standards baseline
 - `05-procedures/` — runbooks
 - `06-risks/` — risk register
-- `07-evidence/` — evidence indexes
+- `07-evidence/` — reserved; **active evidence indexes use `brain/evidence/<CC-slug>/`**
 - `08-decisions/` — decision log
+- `evidence/` — **MVP active path** for control evidence indexes (`index-YYYYMMDD.md`, optional `findings-*.json`)

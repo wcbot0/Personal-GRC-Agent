@@ -69,7 +69,7 @@ def run_skill(
     )
 
     skill_fn = _load_skill_fn(skill_name)
-    context: dict[str, Any] = {"output_dir": out_dir, "guard": guard}
+    context: dict[str, Any] = {"output_dir": out_dir, "guard": guard, "audit": audit}
     output = skill_fn(input_path.read_text(encoding="utf-8"), context=context)
 
     serialized = json.dumps(output, indent=2, default=str)
@@ -86,9 +86,9 @@ def run_skill(
         skill_name,
         output,
         serialized,
-        retry_fn=lambda: skill_fn(
+        retry_fn=lambda failed: skill_fn(
             input_path.read_text(encoding="utf-8"),
-            context={**context, "retry": True},
+            context={**context, "retry": True, "verifier_feedback": failed},
         ),
     )
 
