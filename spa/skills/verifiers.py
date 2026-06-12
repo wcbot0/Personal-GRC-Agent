@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+RetryFn = Callable[[list[dict[str, Any]]], dict[str, Any]]
+
 import jsonschema
 
 from spa.lint.secrets import PATTERNS
@@ -64,7 +66,7 @@ def run_verifiers(
     output: dict[str, Any],
     serialized: str,
     *,
-    retry_fn: Callable[[], dict[str, Any]] | None = None,
+    retry_fn: RetryFn | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     skill_dir = SKILLS_DIR / skill_name
     schema_path = skill_dir / "output.schema.json"
@@ -81,7 +83,7 @@ def run_verifiers(
         return output, results
 
     if retry_fn is not None:
-        output2 = retry_fn()
+        output2 = retry_fn(results)
         serialized2 = json.dumps(output2, indent=2)
         results2 = []
         if schema_path.exists():
