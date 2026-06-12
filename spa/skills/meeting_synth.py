@@ -28,7 +28,14 @@ def _extract_bullets(text: str, keywords: list[str]) -> list[str]:
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    context = context or {}
     resolve_output_dir(context)
+    from spa.llm.skill_engine import maybe_run_llm
+
+    return maybe_run_llm("meeting-synth", content, context, _run_heuristic)
+
+
+def _run_heuristic(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
 
     decisions = _extract_bullets(content, ["decided", "decision", "agreed", "approved"])
     risks = _extract_bullets(content, ["risk", "concern", "blocker", "gap"])

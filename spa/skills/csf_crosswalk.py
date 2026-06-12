@@ -5,6 +5,12 @@ from typing import Any
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    from spa.llm.skill_engine import maybe_run_llm
+
+    return maybe_run_llm("csf-crosswalk", content, context, _run_heuristic)
+
+
+def _run_heuristic(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     artifact = content.strip().splitlines()[0][:120] if content.strip() else "unspecified artifact"
 
     mappings = [
