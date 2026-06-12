@@ -60,7 +60,7 @@ Build a **portable, GitHub-distributed, local-first agentic Security Personal As
 
 ### 3.3 Drafting skills (DRAFT / auto, A1–A2)
 - FR10. `meeting-synth`: transcript/notes -> decisions, risks, action items, proposed tickets (as files), control tags.
-- FR11. `policy-redline`: change request -> Markdown redline in `brain/policies/proposals/` on an agent branch + Draft PR body.
+- FR11. `policy-redline`: change request -> Markdown redline in `brain/03-policies/proposals/` on an agent branch + Draft PR body.
 - FR12. `csf-crosswalk`: artifact/policy -> control mapping table (CSF 2.0 + SOC2 CC + 800-53 placeholders) + gap list.
 - FR13. `evidence-pack`: control id + period -> evidence index file under `brain/evidence/...`.
 - FR14. `ticket-draft`: produces an AI-Proposed ticket object (file in MVP) with suggested owner + rationale + control tags; assignee = self/unassigned.
@@ -78,7 +78,7 @@ Build a **portable, GitHub-distributed, local-first agentic Security Personal As
 ### 3.6 Audit & governance
 - FR21. Append-only JSONL audit log per run: run_id, timestamp, user_request, task_class, risk_class, retrieved_memory_ids, tools_called, approval_required, outputs, verifications.
 - FR22. `autonomy-policy.yaml` is the single source of truth for gates; loaded at startup.
-- FR23. CODEOWNERS makes the user the required reviewer for `agent/`, `skills/`, `brain/policies/`.
+- FR23. CODEOWNERS makes the user the required reviewer for `agent/`, `skills/`, `brain/03-policies/`.
 - FR24. Nightly/`make redteam` prompt-injection corpus run against ingestion paths.
 
 ### 3.7 Portability & sharing

@@ -153,7 +153,7 @@ def _run_verifiers_first_pass(skill: str, fixture_path: Path) -> tuple[dict, lis
     with tempfile.TemporaryDirectory() as tmp:
         output = skill_fn(content, context={"output_dir": Path(tmp)})
     serialized = json.dumps(output, indent=2, default=str)
-    _, verifications = run_verifiers(skill, output, serialized, retry_fn=lambda: output)
+    _, verifications = run_verifiers(skill, output, serialized, retry_fn=lambda _: output)
     first_pass = all(v.get("passed") for v in verifications)
     return output, verifications, first_pass
 

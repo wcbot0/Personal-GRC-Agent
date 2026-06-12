@@ -253,6 +253,30 @@ docker compose up -d && make seed
 </details>
 
 <details>
+<summary><strong>Connect any MCP client</strong></summary>
+
+Governed tools run the same pipeline as the CLI — ToolGuard, verifiers, hash-chained audit:
+
+```bash
+source .venv/bin/activate
+spa mcp serve    # stdio transport; see mcp/pga-governed.json
+```
+
+| Tool | Purpose |
+|------|---------|
+| `pga_ingest` | Ingest + auto-pipeline |
+| `pga_run_skill` | Run a drafting skill |
+| `pga_proposals_*` | CPO list/show/approve/reject |
+| `pga_audit_verify` | Hash chain integrity |
+| `pga_memory_search` | Episodic + semantic search |
+
+**Approve/reject require `confirm: true`** — MCP clients must show the human what they are approving.
+
+Hermes wiring: `./scripts/setup-hermes.sh` (registers `pga-governed` + read-only `brain/` filesystem).
+
+</details>
+
+<details>
 <summary><strong>Integrating with Hermes Agent</strong></summary>
 
 PGA works in two modes — use either or both:
@@ -278,9 +302,9 @@ hermes model
 hermes chat
 ```
 
-Hermes MCP mounts: `brain/`, `inbox/`, `workspace/drafts/`
+Hermes MCP: **`pga-governed`** (ingest, skills, audit) + read-only **`pga-filesystem`** (`brain/` browse)
 
-For governed artifacts (verifiers + audit trail), run `spa` skills — Hermes reads and drafts via MCP but doesn't enforce ToolGuard.
+For governed artifacts (verifiers + audit trail), use **`pga-governed`** MCP or `spa` CLI — raw filesystem MCP does not enforce ToolGuard.
 
 ```bash
 spa ingest inbox/my-meeting-notes.md
@@ -420,7 +444,7 @@ make selftest        # health checks
 make eval            # golden-fixture skill evals
 make redteam         # prompt-injection corpus
 make lint            # policy-lint + secret-scan
-pytest tests/ -v     # 40+ tests
+pytest tests/ -v     # 136 tests
 ```
 
 Scaffold a new skill:

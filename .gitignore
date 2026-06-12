@@ -5,6 +5,7 @@ secrets/
 mcp/*.json
 mcp/**/*.json
 !mcp/filesystem.json
+!mcp/pga-governed.json
 workspace/.data/
 governance/audit-logs/
 governance/approval-queue/
