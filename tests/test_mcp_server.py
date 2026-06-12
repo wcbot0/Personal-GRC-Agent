@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -106,15 +107,14 @@ async def test_mcp_stdio_round_trip(mcp_env):
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
-    venv_python = ROOT / ".venv/bin/python"
+    python = sys.executable
     server_params = StdioServerParameters(
-        command=str(venv_python),
+        command=python,
         args=["-m", "spa.mcp_server"],
         env={
             "SPA_DATA_DIR": str(mcp_env["data_dir"]),
             "SPA_AUDIT_DIR": str(mcp_env["audit_dir"]),
             "SPA_APPROVAL_QUEUE_DIR": str(mcp_env["queue_dir"]),
-            "PATH": str(ROOT / ".venv/bin"),
         },
         cwd=str(ROOT),
     )
