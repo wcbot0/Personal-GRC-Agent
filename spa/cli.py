@@ -171,6 +171,19 @@ def proposals_reject(cpo_id: str, reason: str, rejected_by: str) -> None:
     click.echo(f"Rejected {cpo['id']}: {reason}")
 
 
+@main.group("mcp")
+def mcp_group() -> None:
+    """MCP server commands."""
+
+
+@mcp_group.command("serve")
+def mcp_serve() -> None:
+    """Start the governed MCP server (stdio transport)."""
+    from spa.mcp_server import serve_stdio
+
+    serve_stdio()
+
+
 @main.command("run-skill")
 @click.argument("skill_name")
 @click.option("--input", "input_path", required=True, type=click.Path(exists=True))
