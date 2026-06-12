@@ -419,7 +419,7 @@ make selftest        # health checks
 make eval            # golden-fixture skill evals
 make redteam         # prompt-injection corpus
 make lint            # policy-lint + secret-scan
-pytest tests/ -v     # 40+ tests
+pytest tests/ -v     # 123 tests
 ```
 
 Scaffold a new skill:
