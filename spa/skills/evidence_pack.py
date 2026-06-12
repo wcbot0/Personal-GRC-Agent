@@ -189,7 +189,7 @@ def _build_index_markdown(
             "| Item | Source | Collected |",
             "|------|--------|-----------|",
             "| Access review export | manual | pending |",
-            "| Policy excerpt | brain/policies/ | pending |",
+            "| Policy excerpt | brain/03-policies/ | pending |",
             "",
             "## Control tags",
         ]
