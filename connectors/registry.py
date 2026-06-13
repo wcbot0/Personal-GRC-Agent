@@ -59,9 +59,10 @@ def _ensure_live_writes(connector_type: str, provider_name: str) -> None:
         )
 
 
-def get_ticket_provider(guard: "ToolGuard | None" = None):
+def get_ticket_provider(guard: "ToolGuard | None" = None, *, require_live_writes: bool = True):
     name = os.getenv("TICKET_PROVIDER", "none").lower()
-    _ensure_live_writes("ticket", name)
+    if require_live_writes:
+        _ensure_live_writes("ticket", name)
     providers = {
         "none": NoneTicketProvider,
         "linear": LinearTicketProvider,

@@ -172,6 +172,41 @@ def proposals_reject(cpo_id: str, reason: str, rejected_by: str) -> None:
     click.echo(f"Rejected {cpo['id']}: {reason}")
 
 
+@main.group("tickets")
+def tickets_group() -> None:
+    """Ticket proposal commands."""
+
+
+@tickets_group.command("publish")
+@click.option("--path", "proposal_path", default=None, type=click.Path(exists=True, dir_okay=False))
+@click.option("--id", "ticket_id", default=None, help="Ticket proposal id (e.g. AI-PROPOSED-001)")
+@click.option("--skill", default="ticket-draft", help="Originating skill for provenance")
+def tickets_publish(proposal_path: str | None, ticket_id: str | None, skill: str) -> None:
+    """Propose publishing an AI-Proposed ticket draft to an external system (CPO-gated)."""
+    from spa.audit.logger import AuditLogger
+    from spa.tools.guard import ToolGuard
+    from spa.workflows.ticket_publish import propose_ai_proposed_ticket_cpo
+
+    if not proposal_path and not ticket_id:
+        click.echo("Provide --path or --id.", err=True)
+        sys.exit(1)
+
+    audit = AuditLogger()
+    guard = ToolGuard(audit=audit)
+    try:
+        cpo_id = propose_ai_proposed_ticket_cpo(
+            guard=guard,
+            queue=guard.queue,
+            path=proposal_path,
+            ticket_id=ticket_id,
+            skill=skill,
+        )
+    except FileNotFoundError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+    click.echo(json.dumps({"cpo_id": cpo_id, "status": "pending"}, indent=2))
+
+
 @main.group("mcp")
 def mcp_group() -> None:
     """MCP server commands."""
