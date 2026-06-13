@@ -1,4 +1,4 @@
 {
-  "required_fields": ["control_mappings", "gaps", "control_tags"],
-  "min_mappings": 1
+  "_deprecated": "Use evals/crosswalk/scenarios.yaml and per-scenario golden files under evals/crosswalk/golden/",
+  "scenarios": ["cloud-saas-vendor", "ai-governance-vendor", "combined-ai-cloud"]
 }

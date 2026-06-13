@@ -46,15 +46,24 @@ CROSSWALK_JSON = {
     "control_mappings": [
         {
             "artifact_excerpt": "Vendor questionnaire excerpt",
-            "csf_2": "ID.AM-1",
+            "csf_2": "PR.AA-05",
             "soc2_cc": "CC6.1",
+            "iso27001": "A.5.15",
+            "iso27018": "A.9.2.1",
+            "iso42001": "",
             "nist_800_53": "AC-2",
             "coverage": "partial",
             "notes": "Access management referenced",
         }
     ],
     "gaps": ["Missing periodic access review evidence"],
-    "control_tags": ["CSF:ID.AM-1", "SOC2:CC6.1", "800-53:AC-2"],
+    "control_tags": [
+        "CSF:PR.AA-05",
+        "SOC2:CC6.1",
+        "ISO27001:A.5.15",
+        "ISO27018:A.9.2.1",
+        "800-53:AC-2",
+    ],
 }
 
 USAGE = {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}

@@ -21,6 +21,7 @@ ISO 42001 specifies requirements to establish, implement, maintain, and continua
 
 - CSF:GV.PO
 - SOC2:CC1.1
+- ISO42001:A.2.2
 - 800-53:PL-2
 
 ## PGA harness fit

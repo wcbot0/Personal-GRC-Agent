@@ -1,3 +1,4 @@
+# Intentionally vulnerable code for repo-security-review evals — NOT production code.
 import os
 import pickle
 import subprocess

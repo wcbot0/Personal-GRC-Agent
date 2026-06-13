@@ -2,137 +2,43 @@
 
 All notable changes to Personal GRC Agent (PGA) are documented here.
 
-## [Unreleased] — Phase 1 Harness Core
+Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-### Milestone 1.1 — Hygiene sweep
+## [Unreleased]
 
-- Moved `SPA_MVP` → `docs/SPA_MVP.md`; updated legacy `brain/policies/` references to `brain/03-policies/`
-- Removed duplicate `brain/policies/` tree
-- Added `brain/04-standards/` through `brain/08-decisions/` README stubs; reconciled `brain/00-meta/README.md` with active `brain/evidence/` convention
-- Renamed `Security's Personal Agent.code-workspace` → `pga.code-workspace`
-- README: corrected test count
+### Added
 
-### Milestone 1.2 — Governed MCP server
+- Multi-framework csf-crosswalk eval scenarios (ISO 27018, ISO 42001)
+- Brain framework crosswalks for SOC 2, CSF, ISO 27001/27018/42001
+- Community docs: `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
+- Dependabot configuration for pip and GitHub Actions
 
-- Added `spa mcp serve` (FastMCP stdio) in `spa/mcp_server.py`
-- Exposed ToolGuard-wrapped tools: ingest, run-skill, proposals, audit verify, memory search
-- Approve/reject require `confirm: true` (A3 human gate)
-- Added `mcp/pga-governed.json`; updated `scripts/setup-hermes.sh` (governed server + read-only brain filesystem)
-- Tests: `tests/test_mcp_server.py` (registry, audit round-trip, stdio client)
+### Changed
 
-### Milestone 1.3 — LLM-backed skill engine
+- Removed internal agent handoff docs from public tree
+- Reframed `docs/SPA_MVP.md` as contributor architecture reference
+- Moved `pytest` to optional `[dev]` dependencies in `pyproject.toml`
 
-- Added `spa/llm/client.py` (OpenAI, Anthropic, Ollama via httpx)
-- Upgraded `meeting-synth` and `csf-crosswalk` with LLM prompts + brain semantic snippets
-- Verifier-feedback retry loop; deterministic heuristic fallback when `LLM_API_KEY` unset or `SPA_NO_LLM=1`
-- Tests: `tests/test_llm.py` (mocked provider, fallback, retry → CPO)
+## [0.1.0] - 2026-06-13
 
-### Quality gates (branch)
+Initial public release of Personal GRC Agent — a local-first, draft-by-default GRC copilot.
 
-| Suite | Result |
-|-------|--------|
-| `pytest tests/` | 136 passed |
-| `make eval` | 6/6 skills |
-| `make lint` | policy-lint + secret-scan OK |
-| `make redteam` | 30 cases OK |
+### Features
 
-### Deviations
+- **`spa` CLI** — ingest, skill runner, proposals, audit verify, brain packs, cloud scan
+- **Governed MCP server** (`spa mcp serve`) — ToolGuard-wrapped tools with hash-chained audit
+- **Skills** — meeting-synth, ticket-draft, policy-redline, csf-crosswalk, evidence-pack, daily-brief, risk-analyst, repo-security-review, questionnaire
+- **Draft-by-default governance** — A0–A5 action-risk gates via `agent/autonomy-policy.yaml` and CPO approval queue
+- **Local-first memory** — SQLite episodic + Qdrant semantic + redaction-at-write
+- **Five runtime adapters** — Cursor, Claude Code, Hermes, ChatGPT, OpenClaw (`spa init --runtime`)
+- **Security Brain** — git-backed frameworks, policies, controls, evidence templates
+- **CI quality gates** — skill evals, policy-lint, secret-scan, redteam corpus
 
-- Hermes filesystem MCP demoted to `brain/` read-only only (inbox/drafts no longer mounted) — governed MCP is the preferred write path
-- LLM env supports both `LLM_BASE_URL` and existing `LLM_API_BASE` alias
+### Connectors
 
-### Review fixes (pre-merge)
+- File-only ticket/GRC providers by default (`TICKET_PROVIDER=none`)
+- Optional Linear live writes behind CPO (disabled by default)
+- Disabled vendor MCP templates (AWS, GCP, Slack, Jira, Vanta, Drata)
 
-- **Removed `pga-filesystem` mount** — `@modelcontextprotocol/server-filesystem` exposes write tools; setup script now registers `pga-governed` only and idempotently drops legacy `pga-filesystem` from `~/.hermes/config.yaml`
-- **CI deterministic mode** — `SPA_NO_LLM=1` pinned in skill-tests and redteam GitHub Actions jobs
-- **Ollama without API key** — `llm_enabled()` returns true for `LLM_PROVIDER=ollama` with no `LLM_API_KEY`; OpenAI/Anthropic still require a key
-- **Human-gate comment** — documented ToolGuard bypass in `_execute_human_gate` (CPO-to-approve-a-CPO circularity; `confirm=true` is client-asserted)
-
-## [Unreleased] — Phase 2 Five-Runtime Coverage
-
-### Milestone 2.0 — Phase 1 review fixes
-
-- The four review fixes above; merged to main independently via PR #16 and reconciled into this branch
-
-### Milestone 2.1 — SKILL.md spec migration
-
-- Renamed `skills/<name>/skill.md` -> `SKILL.md` with YAML frontmatter (8 skills); real git rename verified on case-insensitive filesystems
-- Updated skill engine, scaffold script, docs; added `tests/test_skill_spec.py`
-- Pinned `SPA_NO_LLM=1` in `make eval`
-
-### Milestone 2.2 — `spa init --runtime`
-
-- New CLI: `spa init --runtime <cursor|claude|chatgpt|hermes|openclaw>`
-- Idempotent glue generation with `--dry-run`, `--check`, `--force`
-- Tests: `tests/test_runtime_init.py` (14 cases)
-
-### Milestone 2.3 — Quickstart matrix + E2E
-
-- README five-runtime quickstart table
-- `scripts/e2e/run-<runtime>.sh` + shared `mcp_scenario.py`
-- Per-runtime docs under `docs/runtimes/`
-
-### Quality gates (branch)
-
-| Suite | Result |
-|-------|--------|
-| `pytest tests/` | 166 passed |
-| `make eval` | 8/8 skills |
-| `make lint` | policy-lint + secret-scan OK |
-| `make redteam` | 30 cases OK |
-| `spa audit verify` | valid |
-
-### Deviations
-
-- Hermes init invokes `setup-hermes.sh` (requires Hermes installed locally)
-- E2E scripts degrade to MCP stdio when runtime binary absent (`SKIPPED-RUNTIME-NATIVE`)
-- OpenClaw config uses `.openclaw/openclaw.json` (workspace-local, not global `~/.openclaw/`)
-
-## [Unreleased] — Phase 3 Useful Depth
-
-### Milestone 3.1 — Linear live A2 writes behind CPO
-
-- `spa tickets publish` — propose AI-Proposed ticket drafts for external publish (A2 notify + A4 CPO)
-- Linear client: AI-Proposed label, provenance comment, `ApprovalQueue.execute` for `create_ticket_live`
-- Tool mappings: `create_ai_proposed_ticket`, `add_provenance_comment` (A2)
-- Write-disabled default unchanged; live writes require `connectors.ticket.live_write_enabled` + approved CPO
-
-### Milestone 3.2 — Cloud findings pipeline
-
-- `spa cloud scan` — read-only checks from `cloud-checks.yaml` → findings JSON, gap tickets, evidence index append
-- `scripts/cloud-scan-cron.sh` — cron-friendly wrapper (documented, not registered)
-- Tests: `tests/test_cloud_scan.py` (fixture provider, zero live cloud)
-
-### Milestone 3.3 — Questionnaire skill (CAIQ/SIG)
-
-- New `questionnaire` skill with brain-grounded citations, `needs_human` flags, citation verifier
-- Golden eval lane + `evals/fixtures/questionnaire_input.md`
-
-### Milestone 3.4 — Brain packs v1
-
-- `spa brain add <pack>` / `spa brain list` / `spa brain list --check`
-- Packs: `iso-42001`, `nist-ai-rmf` under `brain/packs/` → `brain/04-standards/<pack>/`
-- Idempotent install + semantic re-index via `seed_brain()`
-
-### Milestone 3.5 — Reliability metrics M1/M2
-
-- `spa/governance/reliability_metrics.py` — M1 first-pass acceptance, M2 time-to-detect from audit/CPO history
-- M3 loaded from `governance/eval-history/`; all three rendered in `daily-brief` output
-- Persisted `m1-m2-{timestamp}.json` reports alongside M3
-
-### Quality gates (branch)
-
-| Suite | Result |
-|-------|--------|
-| `pytest tests/` | 182 passed |
-| `make eval` | 9/9 skills |
-| `make lint` | policy-lint + secret-scan OK |
-| `make redteam` | 30 cases OK |
-| `spa audit verify` | valid |
-
-### Deviations
-
-- Linear live writes remain A4 (`create_ticket_live`); A2 `create_ai_proposed_ticket` is notify-only pre-CPO
-- Cloud provider registry still requires `live_write_enabled` for AWS/GCP reads (existing Phase 2 behavior)
-- M1 uses skill_complete/skill_failed audit proxy until edit-distance tracking on CPO outcomes lands
-- Phase 3 handoff doc committed separately (`docs/HANDOFF-phase3.md`); orchestrator merges to main
+[Unreleased]: https://github.com/wcbot0/Personal-GRC-Agent/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/wcbot0/Personal-GRC-Agent/releases/tag/v0.1.0

@@ -1,0 +1,15 @@
+scenarios:
+  - id: cloud-saas-vendor
+    description: SaaS vendor with cloud PII processing (ISO 27018 scope)
+    fixture: fixtures/cloud-saas-vendor.md
+    golden: golden/cloud-saas-vendor.json
+
+  - id: ai-governance-vendor
+    description: LLM platform vendor (ISO 42001 scope)
+    fixture: fixtures/ai-governance-vendor.md
+    golden: golden/ai-governance-vendor.json
+
+  - id: combined-ai-cloud
+    description: AI analytics SaaS with cloud PII (27018 + 42001)
+    fixture: fixtures/combined-ai-cloud.md
+    golden: golden/combined-ai-cloud.json
