@@ -79,6 +79,22 @@ HERMES_BOOTSTRAP=0 ./bootstrap.sh
 
 ---
 
+## Five-runtime quickstart
+
+Same brain, skills, and governance on every runtime. One-time setup per environment:
+
+| Runtime | Install | Setup | Skills load | Governance | E2E script |
+|---------|---------|-------|-------------|------------|------------|
+| **Cursor** | [cursor.com](https://cursor.com) | `spa init --runtime cursor` | `.cursor/rules/` + `AGENTS.md` | `pga-governed` MCP in `.cursor/mcp.json` | `./scripts/e2e/run-cursor.sh` |
+| **Claude Code** | [Claude Code docs](https://code.claude.com/docs) | `spa init --runtime claude` | Auto: `skills/*/SKILL.md` | `.mcp.json` → `spa mcp serve` | `./scripts/e2e/run-claude.sh` |
+| **ChatGPT / Codex** | Codex CLI or ChatGPT Desktop | `spa init --runtime chatgpt` | `AGENTS.md` (Codex native) | Desktop MCP snippet in `docs/runtimes/chatgpt.md` | `./scripts/e2e/run-chatgpt.sh` |
+| **Hermes** | [Hermes install](https://hermes-agent.nousresearch.com/) | `spa init --runtime hermes` | `AGENTS.md` at repo root | `pga-governed` in `~/.hermes/config.yaml` | `./scripts/e2e/run-hermes.sh` |
+| **OpenClaw** | [OpenClaw docs](https://docs.openclaw.ai/) | `spa init --runtime openclaw` | `skills/` via `.openclaw/openclaw.json` | `pga-governed` MCP stdio | `./scripts/e2e/run-openclaw.sh` |
+
+Per-runtime details: [`docs/runtimes/`](docs/runtimes/). E2E scripts drop `evals/fixtures/meeting_sample.md` into an isolated inbox, run governed ingest + `meeting-synth` via MCP, approve a CPO with `confirm=true`, and verify the audit chain. When a runtime binary is absent (CI), scripts fall back to the MCP stdio client and print `SKIPPED-RUNTIME-NATIVE`.
+
+---
+
 ## 🎯 Features
 
 <table>
