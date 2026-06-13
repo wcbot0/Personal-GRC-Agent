@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tarfile
+import threading
 from datetime import date
 from pathlib import Path
 
@@ -45,6 +46,29 @@ def test_tampered_event_breaks_chain(tmp_path: Path):
     assert "event_hash" in result.breaks[0].reason
 
 
+def test_legacy_events_fail_by_default(tmp_path: Path):
+    audit_dir = tmp_path / "audit"
+    log_file = audit_dir / "audit-2026-06-05.jsonl"
+    audit_dir.mkdir(parents=True)
+    legacy = {
+        "event_id": "legacy-1",
+        "run_id": "r1",
+        "timestamp": "2026-06-05T10:00:00+00:00",
+        "event_type": "old",
+        "task_class": "test",
+        "risk_class": "A0",
+    }
+    log_file.write_text(json.dumps(legacy) + "\n", encoding="utf-8")
+
+    logger = AuditLogger(log_dir=audit_dir)
+    logger.emit("new", task_class="test", risk_class="A0")
+
+    result = verify_chain(audit_dir)
+    assert not result.valid
+    assert result.legacy_count == 1
+    assert any("legacy event without hash" in b.reason for b in result.breaks)
+
+
 def test_legacy_events_warn_but_allow_new_chain(tmp_path: Path):
     audit_dir = tmp_path / "audit"
     log_file = audit_dir / "audit-2026-06-05.jsonl"
@@ -56,10 +80,11 @@ def test_legacy_events_warn_but_allow_new_chain(tmp_path: Path):
     logger = AuditLogger(log_dir=audit_dir)
     logger.emit("new", task_class="test", risk_class="A0")
 
-    result = verify_chain(audit_dir)
+    result = verify_chain(audit_dir, require_full_chain=False)
     assert result.valid
     assert result.legacy_count == 1
     assert result.chain_starts == 1
+    assert result.warnings
 
 
 def test_date_filtered_verify_uses_prior_chain_head(tmp_path: Path):
@@ -231,3 +256,115 @@ def test_evidence_manifest_self_hash_matches_on_disk(tmp_path: Path):
     manifest_without_self = {**manifest, "files": [f for f in manifest["files"] if f["path"] != "manifest.json"]}
     expected_self_hash = hashlib.sha256(json.dumps(manifest_without_self, indent=2).encode("utf-8")).hexdigest()
     assert manifest_entry["sha256"] == expected_self_hash
+
+
+def test_tail_truncation_breaks_chain(tmp_path: Path):
+    audit_dir = tmp_path / "audit"
+    logger = AuditLogger(log_dir=audit_dir)
+    for idx in range(3):
+        logger.emit("test_event", task_class="test", risk_class="A0", preview=f"event-{idx}")
+
+    log_file = next(audit_dir.glob("audit-*.jsonl"))
+    lines = log_file.read_text(encoding="utf-8").splitlines()
+    log_file.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+
+    result = verify_chain(audit_dir)
+    assert not result.valid
+    assert any("count mismatch" in b.reason for b in result.breaks)
+
+
+def test_malformed_line_recorded_as_break(tmp_path: Path):
+    audit_dir = tmp_path / "audit"
+    audit_dir.mkdir(parents=True)
+    log_file = audit_dir / "audit-2026-06-07.jsonl"
+    log_file.write_text("not-json\n", encoding="utf-8")
+
+    result = verify_chain(audit_dir)
+    assert not result.valid
+    assert any("invalid JSON" in b.reason for b in result.breaks)
+
+
+def test_emit_reconciles_stale_head_against_log_tail(tmp_path: Path):
+    from spa.audit.chain import CHAIN_HEAD_FILENAME, compute_log_tail
+
+    audit_dir = tmp_path / "audit"
+    logger = AuditLogger(log_dir=audit_dir)
+    logger.emit("one", task_class="test", risk_class="A0")
+    logger.emit("two", task_class="test", risk_class="A0")
+    logger.emit("three", task_class="test", risk_class="A0")
+
+    real_tail = compute_log_tail(audit_dir)
+
+    head_path = audit_dir / CHAIN_HEAD_FILENAME
+    stale = json.loads(head_path.read_text(encoding="utf-8"))
+    stale["event_hash"] = "stale" + "0" * 59
+    stale["event_count"] = stale["event_count"] - 1
+    stale["last_sequence"] = stale["last_sequence"] - 1
+    head_path.write_text(json.dumps(stale, sort_keys=True) + "\n", encoding="utf-8")
+
+    new_event = logger.emit("four", task_class="test", risk_class="A0")
+
+    assert new_event["prev_event_hash"] == real_tail.event_hash
+    assert new_event["sequence_number"] == real_tail.last_sequence + 1
+
+    result = verify_chain(audit_dir)
+    assert result.valid
+    assert result.event_count == 4
+    assert result.chain_starts == 1
+
+
+def test_emit_reconciles_head_after_log_only_write(tmp_path: Path):
+    from spa.audit.chain import CHAIN_HEAD_FILENAME, compute_log_tail
+
+    audit_dir = tmp_path / "audit"
+    logger = AuditLogger(log_dir=audit_dir)
+    first = logger.emit("one", task_class="test", risk_class="A0")
+
+    log_file = next(audit_dir.glob("audit-*.jsonl"))
+    second = dict(first)
+    second["event_id"] = "evt-crashed"
+    second["prev_event_hash"] = first["event_hash"]
+    second["sequence_number"] = first["sequence_number"] + 1
+    second.pop("event_hash")
+    second["event_hash"] = compute_event_hash(second)
+    with log_file.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(second) + "\n")
+
+    real_tail = compute_log_tail(audit_dir)
+    assert real_tail.event_hash == second["event_hash"]
+
+    third = logger.emit("three", task_class="test", risk_class="A0")
+    assert third["prev_event_hash"] == second["event_hash"]
+    assert third["sequence_number"] == second["sequence_number"] + 1
+
+    head = json.loads((audit_dir / CHAIN_HEAD_FILENAME).read_text(encoding="utf-8"))
+    assert head["event_hash"] == third["event_hash"]
+    assert head["event_count"] == 3
+
+    result = verify_chain(audit_dir)
+    assert result.valid
+    assert result.event_count == 3
+
+
+def test_concurrent_emit_maintains_chain(tmp_path: Path):
+    audit_dir = tmp_path / "audit"
+    logger = AuditLogger(log_dir=audit_dir)
+    errors: list[Exception] = []
+
+    def emit_many() -> None:
+        try:
+            for idx in range(10):
+                logger.emit("concurrent", task_class="test", risk_class="A0", preview=f"evt-{idx}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=emit_many) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert not errors
+    result = verify_chain(audit_dir)
+    assert result.valid
+    assert result.event_count == 20

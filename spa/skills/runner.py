@@ -4,11 +4,14 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from spa.audit.logger import AuditLogger
+from spa.memory.redaction import redact_obj
 from spa.paths import ROOT, get_drafts_dir
 from spa.skills.verifiers import run_verifiers
 from spa.tools.guard import ToolGuard
@@ -47,6 +50,32 @@ def _input_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _promote_staged_files(staging_dir: Path, dest_dir: Path) -> None:
+    for src in sorted(staging_dir.rglob("*")):
+        if not src.is_file():
+            continue
+        rel = src.relative_to(staging_dir)
+        target = dest_dir / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(target))
+
+
+def _remap_output_paths(output: dict[str, Any], staging_dir: Path, final_dir: Path) -> dict[str, Any]:
+    old_root = staging_dir.resolve().as_posix()
+    new_root = final_dir.resolve().as_posix()
+
+    def remap(value: Any) -> Any:
+        if isinstance(value, str):
+            return value.replace(old_root, new_root) if old_root in value else value
+        if isinstance(value, list):
+            return [remap(item) for item in value]
+        if isinstance(value, dict):
+            return {key: remap(item) for key, item in value.items()}
+        return value
+
+    return remap(output)
+
+
 def run_skill(
     skill_name: str,
     input_path: str | Path,
@@ -69,76 +98,83 @@ def run_skill(
         task_class="skill",
     )
 
-    skill_fn = _load_skill_fn(skill_name)
-    context: dict[str, Any] = {"output_dir": out_dir, "guard": guard, "audit": audit}
-    output = skill_fn(input_path.read_text(encoding="utf-8"), context=context)
+    staging_dir = Path(tempfile.mkdtemp(prefix=f".spa-staging-{skill_name}-"))
+    try:
+        skill_fn = _load_skill_fn(skill_name)
+        context: dict[str, Any] = {"output_dir": staging_dir, "guard": guard, "audit": audit}
+        output = skill_fn(input_path.read_text(encoding="utf-8"), context=context)
 
-    serialized = json.dumps(output, indent=2, default=str)
-    audit.emit(
-        "skill_preview",
-        task_class="skill",
-        risk_class="A1",
-        tools_called=[f"skill:{skill_name}"],
-        preview=f"skill={skill_name} chars={len(serialized)}",
-        input_sha256=input_hash,
-    )
-
-    final_output, verifications = run_verifiers(
-        skill_name,
-        output,
-        serialized,
-        retry_fn=lambda failed: skill_fn(
-            input_path.read_text(encoding="utf-8"),
-            context={**context, "retry": True, "verifier_feedback": failed},
-        ),
-    )
-
-    cpo_id: str | None = None
-    if not all(v["passed"] for v in verifications):
-        cpo = guard.queue.create(
-            action_class="A3",
-            action_type="skill_verifier_escalation",
-            title=f"Verifier failure: {skill_name}",
-            description="Skill output failed verifiers after retry",
-            risk_rationale="Draft quality gate not met",
-            proposed_change={"skill": skill_name, "verifications": verifications},
-            control_tags=final_output.get("control_tags", []),
-        )
-        cpo_id = cpo["id"]
+        serialized = json.dumps(output, indent=2, default=str)
         audit.emit(
-            "skill_failed",
+            "skill_preview",
             task_class="skill",
-            risk_class="A3",
-            approval_required=True,
-            cpo_id=cpo_id,
-            verifications=verifications,
+            risk_class="A1",
+            tools_called=[f"skill:{skill_name}"],
+            preview=f"skill={skill_name} chars={len(serialized)}",
             input_sha256=input_hash,
         )
-        audit.emit(
-            "skill_escalated",
-            task_class="skill",
-            risk_class="A3",
-            approval_required=True,
-            cpo_id=cpo_id,
-            verifications=verifications,
-        )
-        raise VerifierFailedError(
-            f"{skill_name} verifiers failed after retry",
-            cpo_id=cpo_id,
-            verifications=verifications,
+
+        final_output, verifications = run_verifiers(
+            skill_name,
+            output,
+            serialized,
+            retry_fn=lambda failed: skill_fn(
+                input_path.read_text(encoding="utf-8"),
+                context={**context, "retry": True, "verifier_feedback": failed},
+            ),
         )
 
-    artifact_path = out_dir / f"{skill_name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+        cpo_id: str | None = None
+        if not all(v["passed"] for v in verifications):
+            cpo = guard.queue.create(
+                action_class="A3",
+                action_type="skill_verifier_escalation",
+                title=f"Verifier failure: {skill_name}",
+                description="Skill output failed verifiers after retry",
+                risk_rationale="Draft quality gate not met",
+                proposed_change={"skill": skill_name, "verifications": verifications},
+                control_tags=final_output.get("control_tags", []),
+            )
+            cpo_id = cpo["id"]
+            audit.emit(
+                "skill_failed",
+                task_class="skill",
+                risk_class="A3",
+                approval_required=True,
+                cpo_id=cpo_id,
+                verifications=verifications,
+                input_sha256=input_hash,
+            )
+            audit.emit(
+                "skill_escalated",
+                task_class="skill",
+                risk_class="A3",
+                approval_required=True,
+                cpo_id=cpo_id,
+                verifications=verifications,
+            )
+            raise VerifierFailedError(
+                f"{skill_name} verifiers failed after retry",
+                cpo_id=cpo_id,
+                verifications=verifications,
+            )
 
-    def _write_artifact() -> None:
-        artifact_path.write_text(json.dumps(final_output, indent=2), encoding="utf-8")
+        _promote_staged_files(staging_dir, out_dir)
+        final_output = _remap_output_paths(final_output, staging_dir, out_dir)
 
-    guarded_write(
-        guard,
-        "write_local_markdown",
-        _write_artifact,
-        preview=artifact_path.name,
-    )
+        artifact_path = out_dir / f"{skill_name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+
+        def _write_artifact() -> None:
+            artifact_path.write_text(json.dumps(redact_obj(final_output), indent=2), encoding="utf-8")
+
+        guarded_write(
+            guard,
+            "write_local_markdown",
+            _write_artifact,
+            preview=artifact_path.name,
+        )
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
     try:
         artifact_ref = str(artifact_path.relative_to(ROOT))

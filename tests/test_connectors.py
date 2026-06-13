@@ -24,6 +24,7 @@ from connectors.registry import (
 )
 from connectors.tickets.jira.provider import JiraTicketProvider
 from connectors.tickets.none.provider import NoneTicketProvider
+from spa.paths import ROOT
 
 VENDOR_TICKET_STUBS = (JiraTicketProvider,)
 VENDOR_GRC_STUBS = (VantaGrcProvider, DrataGrcProvider, SecureframeGrcProvider)
@@ -170,6 +171,21 @@ def test_filesystem_notes_provider_default(monkeypatch):
     provider = get_notes_provider()
     assert provider.__class__ is FilesystemNotesProvider
     assert provider.enabled is True
+
+
+def test_filesystem_notes_provider_read_confined():
+    provider = FilesystemNotesProvider()
+    fixture = ROOT / "evals/fixtures/meeting_sample.md"
+    with pytest.raises(ValueError, match="path must be under"):
+        provider.read(str(fixture))
+    with pytest.raises(ValueError, match="path must be under"):
+        provider.read("/etc/passwd")
+    with pytest.raises(ValueError, match="path must be under"):
+        provider.read("../../etc/passwd")
+
+    brain_readme = ROOT / "brain" / "00-meta" / "README.md"
+    content = provider.read(str(brain_readme))
+    assert "brain" in content.lower() or len(content) > 0
 
 
 def test_granola_selected_is_no_op_with_post_mvp_message(monkeypatch):

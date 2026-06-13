@@ -203,7 +203,12 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     control_match = re.search(r"(?i)control[:\s]+([A-Za-z0-9.\-]+)", content)
     period_match = re.search(r"(?i)period[:\s]+([^\n]+)", content)
     control_id = control_match.group(1) if control_match else "CC6.1"
-    period = period_match.group(1).strip() if period_match else datetime.now(timezone.utc).strftime("%Y-Q%q")
+    if period_match:
+        period = period_match.group(1).strip()
+    else:
+        now = datetime.now(timezone.utc)
+        quarter = (now.month - 1) // 3 + 1
+        period = f"{now.year}-Q{quarter}"
 
     provider = _resolve_provider(content)
     catalog = _load_cloud_checks()
