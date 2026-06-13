@@ -327,8 +327,8 @@ Copy `.env.example` → `.env` (bootstrap does this automatically). **Never comm
 |----------|---------|---------|
 | `SPA_DATA_DIR` | `workspace/.data` | SQLite, drafts, proposals override |
 | `SPA_AUDIT_DIR` | `governance/audit-logs` | Audit log directory |
-| `LLM_PROVIDER` | `openai` | LLM backend |
-| `LLM_API_KEY` | _(empty)_ | Your API key |
+| `LLM_PROVIDER` | `openai` | LLM backend (`openai`, `anthropic`, `ollama`) |
+| `LLM_API_KEY` | _(empty)_ | API key (required for OpenAI/Anthropic; not needed for Ollama) |
 | `LLM_MODEL` | `gpt-4o-mini` | Model for sessions |
 | `QDRANT_HOST` | `localhost` | Vector DB host |
 | `QDRANT_PORT` | `6333` | Vector DB port |
