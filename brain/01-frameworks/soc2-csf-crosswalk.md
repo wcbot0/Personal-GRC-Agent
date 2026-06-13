@@ -72,16 +72,6 @@ Legacy CSF 1.1 tags still appear in some artifacts: `CSF:PR.AC` → `PR.AA`; `CS
 
 ---
 
-## SOC 2 ↔ ISO 27001 (selected)
+## SOC 2 ↔ ISO 27001
 
-| SOC 2 | ISO 27001:2022 |
-| --- | --- |
-| CC6.1–CC6.3 | A.5.15–A.5.18, A.8.2–A.8.5 |
-| CC7.1 | A.8.8, A.8.9 |
-| CC7.2–CC7.4 | A.5.24–A.5.26, A.8.15, A.8.16 |
-| CC8.1 | A.8.25–A.8.32 |
-| CC9.2 | A.5.19–A.5.22 |
-| C1.1–C1.2 | A.5.12–A.5.14, A.8.10 |
-| P1.1–P8.1 | A.5.34, A.6.3, A.5.31, A.5.28 |
-
-See also [csf-iso27001-crosswalk.md](csf-iso27001-crosswalk.md).
+Full CC/C/P → Annex A mapping: [soc2-iso27001-crosswalk.md](soc2-iso27001-crosswalk.md). CSF triangulation: [csf-iso27001-crosswalk.md](csf-iso27001-crosswalk.md).

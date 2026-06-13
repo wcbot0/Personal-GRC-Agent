@@ -2,6 +2,10 @@
 
 # OpenClaw runtime — Personal GRC Agent
 
+Use OpenClaw with PGA skills discovery and governed MCP artifact writes.
+
+**Prerequisites:** [Getting started](../getting-started.md) — bootstrap complete, `spa` on your PATH.
+
 ## Setup
 
 ```bash
@@ -9,7 +13,7 @@ source .venv/bin/activate
 spa init --runtime openclaw
 ```
 
-Generates:
+This generates:
 
 | File | Purpose |
 |------|---------|
@@ -18,21 +22,36 @@ Generates:
 
 Workspace skills load from `skills/` (`SKILL.md` per AgentSkills spec).
 
-## Skills
+Reload OpenClaw Gateway config after init (start a new session).
 
-OpenClaw discovers `skills/**/SKILL.md` under configured roots. Governed artifact writes still go through **`pga-governed`** MCP or `spa` CLI.
+## Using PGA in OpenClaw
+
+OpenClaw discovers `skills/**/SKILL.md` under configured roots for skill contracts and guidance. **Governed artifact writes** still go through **`pga-governed`** MCP or the `spa` CLI — not ad-hoc file writes.
+
+```bash
+spa ingest inbox/my-notes.md
+spa run-skill ticket-draft --input gap-description.md
+```
 
 ## Governance
 
-MCP server runs `spa mcp serve` with repo as cwd — all writes audited and policy-gated.
+The MCP server runs `spa mcp serve` with the repo as cwd — all writes are audited and policy-gated.
 
-## E2E
+## Verify setup
 
 ```bash
-./scripts/e2e/run-openclaw.sh
+spa init --runtime openclaw --check
+make selftest
+spa audit verify
 ```
 
 ## Limitations
 
-- OpenClaw Gateway must reload config after init (new session).
-- Without `openclaw` CLI on PATH, E2E uses MCP stdio fallback (`SKIPPED-RUNTIME-NATIVE`).
+- OpenClaw Gateway must reload config after init.
+- Without the OpenClaw CLI, configure MCP manually using the stdio entry in `.openclaw/openclaw.json`.
+
+## See also
+
+- [Getting started](../getting-started.md)
+- [AGENTS.md](../../AGENTS.md)
+- [OpenClaw docs](https://docs.openclaw.ai/)

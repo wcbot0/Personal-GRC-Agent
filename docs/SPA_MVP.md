@@ -1,9 +1,8 @@
-# Security Personal Assistant (SPA) — MVP Requirements & Build Plan
+# Personal GRC Agent — Architecture & Requirements
 
-**Status:** Handoff-ready for a coding agent
-**Owner:** (you) — Staff Security/GRC Engineer
-**Date:** 2026-06-05
-**License target:** MIT (public template) + private fork for org content
+**Status:** Reference architecture (v0.1)
+**Audience:** Contributors and maintainers
+**License:** MIT — public template; fork privately for org-specific brain content
 
 ---
 
@@ -61,7 +60,7 @@ Build a **portable, GitHub-distributed, local-first agentic Security Personal As
 ### 3.3 Drafting skills (DRAFT / auto, A1–A2)
 - FR10. `meeting-synth`: transcript/notes -> decisions, risks, action items, proposed tickets (as files), control tags.
 - FR11. `policy-redline`: change request -> Markdown redline in `brain/03-policies/proposals/` on an agent branch + Draft PR body.
-- FR12. `csf-crosswalk`: artifact/policy -> control mapping table (CSF 2.0 + SOC2 CC + 800-53 placeholders) + gap list.
+- FR12. `csf-crosswalk`: artifact/policy -> control mapping table (CSF 2.0 + SOC2 CC + ISO 27001 + ISO 27018 + ISO 42001 + 800-53) + gap list.
 - FR13. `evidence-pack`: control id + period -> evidence index file under `brain/evidence/...`.
 - FR14. `ticket-draft`: produces an AI-Proposed ticket object (file in MVP) with suggested owner + rationale + control tags; assignee = self/unassigned.
 - FR15. `daily-brief`: synthesize open proposals, recent sessions, pending approvals into a Markdown brief.
@@ -223,8 +222,3 @@ Acceptance:
 - DoD5. GRC + ticket adapters present but disabled; file-only mode fully functional.
 - DoD6. Public template + private-fork instructions documented.
 
----
-
-## 10. Handoff prompt for the coding agent (paste this)
-
-> Build the repository described in this document. Start at Milestone 0 and proceed sequentially; do not begin a milestone until the prior milestone's acceptance criteria pass. Default runtime is Hermes Agent; keep it swappable behind agent/runtime.config.yaml. All write surfaces in MVP are draft-only: local files, agent-owned git branches, Draft PRs, and AI-Proposed unassigned ticket files. Enforce agent/autonomy-policy.yaml at the tool layer — any A3+ action must create a Change Proposal Object and block until approved. Persist nothing without running redaction-at-write. Every action emits a JSONL audit event. Ship vendor connectors (Linear/Jira, Vanta/Drata/Secureframe) as disabled adapter stubs behind the interface contracts in connectors/interfaces — do NOT implement live vendor writes. Provide bootstrap.sh, docker-compose.yml (Qdrant + local embedding model), Makefile, GitHub Actions (policy-lint, skill-tests, secret-scan, redteam), and golden-fixture evals for each skill. Deliverable is a clean MIT-licensed public template plus instructions to fork into a private org repo. Acceptance = Section 9 Definition of Done.

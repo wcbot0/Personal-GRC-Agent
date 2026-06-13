@@ -1,0 +1,14 @@
+{
+  "required_fields": ["control_mappings", "gaps", "control_tags"],
+  "min_mappings": 2,
+  "control_tags_include_prefixes": [
+    "ISO27001:",
+    "ISO27018:",
+    "ISO42001:",
+    "CSF:",
+    "SOC2:",
+    "800-53:"
+  ],
+  "require_nonempty_fields": ["iso27018", "iso42001"],
+  "min_gaps": 2
+}
