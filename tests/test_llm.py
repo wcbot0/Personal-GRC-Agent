@@ -76,12 +76,27 @@ def llm_env(monkeypatch, tmp_path):
 def test_llm_disabled_without_api_key(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("SPA_NO_LLM", raising=False)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
     assert not llm_enabled()
 
     monkeypatch.setenv("LLM_API_KEY", "x")
     assert llm_enabled()
 
     monkeypatch.setenv("SPA_NO_LLM", "1")
+    assert not llm_enabled()
+
+
+def test_llm_enabled_ollama_without_api_key(monkeypatch):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SPA_NO_LLM", raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    assert llm_enabled()
+
+
+def test_llm_disabled_openai_without_api_key(monkeypatch):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("SPA_NO_LLM", raising=False)
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
     assert not llm_enabled()
 
 
