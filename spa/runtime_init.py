@@ -26,19 +26,20 @@ class InitResult:
     dry_run: bool = False
 
 
-def _spa_mcp_command(root: Path) -> list[str]:
+def _spa_mcp_command(root: Path, *, relative: bool = False) -> list[str]:
     spa = root / ".venv" / "bin" / "spa"
     if spa.is_file():
-        return [str(spa), "mcp", "serve"]
+        cmd = ".venv/bin/spa" if relative else str(spa)
+        return [cmd, "mcp", "serve"]
     return ["spa", "mcp", "serve"]
 
 
 def _mcp_servers_block(root: Path, *, claude: bool = False) -> dict[str, Any]:
-    cmd, *args = _spa_mcp_command(root)
     if claude:
         cmd = "${CLAUDE_PROJECT_DIR:-.}/.venv/bin/spa"
-        if not (root / ".venv" / "bin" / "spa").is_file():
-            cmd = "spa"
+        args = ["mcp", "serve"]
+    else:
+        cmd, *args = _spa_mcp_command(root, relative=True)
     server: dict[str, Any] = {
         "type": "stdio",
         "command": cmd,
