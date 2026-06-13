@@ -49,6 +49,9 @@ cd Personal-GRC-Agent
 source .venv/bin/activate
 make selftest                    # health checks
 spa ingest inbox/my-notes.md     # drop notes → drafts + memory
+spa cloud scan                   # read-only cloud checks → findings + tickets
+spa brain add iso-42001          # install AI governance brain pack
+spa tickets publish --id AI-PROPOSED-001  # propose Linear publish (CPO-gated)
 spa proposals list               # pending approvals (may be empty)
 spa audit verify                 # hash chain integrity
 ```
@@ -124,7 +127,7 @@ Default agent runtime is **Hermes** (MCP). Swap via `agent/runtime.config.yaml` 
 
 ## 🧩 Skills
 
-Six MVP skills — each passes schema + rubric verifiers before writing artifacts.
+Nine skills — each passes schema + rubric verifiers before writing artifacts.
 
 | Skill | What it does | Command |
 |-------|--------------|---------|
@@ -132,9 +135,11 @@ Six MVP skills — each passes schema + rubric verifiers before writing artifact
 | **ticket-draft** | Control gap → AI-Proposed ticket JSON (`assignee: unassigned`) | `spa run-skill ticket-draft --input <file>` |
 | **policy-redline** | Change request → redline Markdown + draft PR body | `spa run-skill policy-redline --input <file>` |
 | **csf-crosswalk** | Artifact → CSF / SOC 2 / 800-53 mapping + gaps | `spa run-skill csf-crosswalk --input <file>` |
-| **daily-brief** | Program status → morning triage brief | `spa run-skill daily-brief --input <file>` |
+| **daily-brief** | Program status + M1/M2/M3 reliability metrics → triage brief | `spa run-skill daily-brief --input <file>` |
 | **evidence-pack** | Control + period → evidence index in `brain/evidence/` | `spa run-skill evidence-pack --input <file> --output-dir .` |
 | **risk-analyst** | Product/tool assessment → threat model, FAIR + NIST 800-30 risk register | `spa run-skill risk-analyst --input <file>` |
+| **repo-security-review** | Local repo OWASP/ASVS scan → risk-scored findings | `spa run-skill repo-security-review --input <file>` |
+| **questionnaire** | CAIQ/SIG Q&A grounded in `brain/` with citations + `needs_human` | `spa run-skill questionnaire --input <file>` |
 
 **Fastest path:** drop raw notes in `inbox/`, then `spa ingest inbox/<file>.md` — auto-detects meetings, runs synth, creates tickets, and triggers policy redlines when relevant.
 
@@ -374,6 +379,30 @@ spa proposals list
 spa proposals show cpo-<uuid>
 spa proposals approve cpo-<uuid>
 spa proposals reject cpo-<uuid> --reason "..."
+```
+
+### Cloud findings scan
+
+```bash
+spa cloud scan --provider gcp --period 2026-Q2
+# Cron-friendly: ./scripts/cloud-scan-cron.sh
+```
+
+### Brain framework packs
+
+```bash
+spa brain list
+spa brain add nist-ai-rmf
+spa brain list --check
+make seed   # after manual brain edits
+```
+
+### Publish ticket proposals (Linear, CPO-gated)
+
+```bash
+# Requires TICKET_PROVIDER=linear + connectors.ticket.live_write_enabled: true
+spa tickets publish --id AI-PROPOSED-001
+spa proposals approve cpo-<uuid>
 ```
 
 ### Audit integrity & export
