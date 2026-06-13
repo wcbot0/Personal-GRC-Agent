@@ -292,7 +292,7 @@ PGA works in two modes — use either or both:
 # 1. Install Hermes (if bootstrap didn't)
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 
-# 2. Wire MCP filesystem to this repo
+# 2. Wire governed MCP into Hermes
 ./scripts/setup-hermes.sh
 
 # 3. Configure model
@@ -302,9 +302,9 @@ hermes model
 hermes chat
 ```
 
-Hermes MCP: **`pga-governed`** (ingest, skills, audit) + read-only **`pga-filesystem`** (`brain/` browse)
+Hermes MCP: **`pga-governed`** (ingest, skills, proposals, audit, memory search)
 
-For governed artifacts (verifiers + audit trail), use **`pga-governed`** MCP or `spa` CLI — raw filesystem MCP does not enforce ToolGuard.
+Use **`pga-governed`** MCP or `spa` CLI for governed artifacts — they enforce ToolGuard and the audit trail.
 
 ```bash
 spa ingest inbox/my-meeting-notes.md
@@ -314,7 +314,7 @@ spa run-skill meeting-synth --input evals/fixtures/meeting_sample.md
 | Symptom | Fix |
 |---------|-----|
 | `hermes: command not found` | Reload shell or `./scripts/install.sh --interactive` |
-| MCP won't connect | `hermes mcp test pga-filesystem`; check `npx` / Node |
+| MCP won't connect | `hermes mcp test pga-governed`; run `./bootstrap.sh` first |
 | Chat ignores PGA rules | Start `hermes chat` from repo root |
 | API key errors | Keys live in `~/.hermes/.env`, not PGA's `.env` |
 
@@ -329,8 +329,8 @@ Copy `.env.example` → `.env` (bootstrap does this automatically). **Never comm
 |----------|---------|---------|
 | `SPA_DATA_DIR` | `workspace/.data` | SQLite, drafts, proposals override |
 | `SPA_AUDIT_DIR` | `governance/audit-logs` | Audit log directory |
-| `LLM_PROVIDER` | `openai` | LLM backend |
-| `LLM_API_KEY` | _(empty)_ | Your API key |
+| `LLM_PROVIDER` | `openai` | LLM backend (`ollama` needs no API key) |
+| `LLM_API_KEY` | _(empty)_ | API key (required for openai/anthropic; optional for ollama) |
 | `LLM_MODEL` | `gpt-4o-mini` | Model for sessions |
 | `QDRANT_HOST` | `localhost` | Vector DB host |
 | `QDRANT_PORT` | `6333` | Vector DB port |

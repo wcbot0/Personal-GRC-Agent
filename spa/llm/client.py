@@ -14,6 +14,9 @@ from spa.memory.redaction import redact_text
 def llm_enabled() -> bool:
     if os.getenv("SPA_NO_LLM", "").strip().lower() in {"1", "true", "yes"}:
         return False
+    provider = os.getenv("LLM_PROVIDER", "openai").lower()
+    if provider == "ollama":
+        return True
     return bool(os.getenv("LLM_API_KEY", "").strip())
 
 

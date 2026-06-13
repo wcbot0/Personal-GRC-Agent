@@ -418,7 +418,7 @@ def test_gitignore_blocks_live_mcp_configs():
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "mcp/*.json" in gitignore
     assert "mcp/**/*.json" in gitignore
-    assert "!mcp/filesystem.json" in gitignore
+    assert "!mcp/pga-governed.json" in gitignore
 
 
 def test_gcp_normalization_extracts_nested_resource_and_relevant_field():

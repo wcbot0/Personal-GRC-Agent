@@ -55,7 +55,15 @@ def _ensure_known_tool(tool_name: str, guard: ToolGuard) -> None:
 
 
 def _execute_human_gate(tool_name: str, fn: Any, *, confirm: bool, guard: ToolGuard | None = None) -> Any:
-    """A3 human-gate actions: require explicit confirm and emit audit events."""
+    """A3 human-gate actions: require explicit confirm and emit audit events.
+
+    Intentionally bypasses ToolGuard.check_allowed: approving a CPO via ToolGuard
+    would require a CPO to approve the CPO (circular). This path re-implements the
+    A5 block check and audit emission directly — keep semantics in sync with guard.py.
+
+    confirm=true is client-asserted; audit metadata human_confirmed records the
+    client's claim, not independent server-side verification of human intent.
+    """
     guard = guard or _guard()
     _ensure_known_tool(tool_name, guard)
     if not confirm:
