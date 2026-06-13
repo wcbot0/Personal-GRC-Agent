@@ -1,4 +1,7 @@
-# meeting-synth
+---
+name: meeting-synth
+description: Synthesize meeting notes into decisions, risks, action items, and proposed tickets. Use when raw meeting notes or transcripts land in the inbox.
+---
 
 **Risk class:** A1 (local draft)
 

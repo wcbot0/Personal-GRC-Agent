@@ -105,7 +105,7 @@ When `SPA_DATA_DIR` is set, proposals move to `{SPA_DATA_DIR}/proposals` instead
 | `get_audit_logs_dir()` | `governance/audit-logs/` |
 | `get_approval_queue_dir()` | `governance/approval-queue/` |
 
-> **Hermes MCP note:** `./scripts/setup-hermes.sh` mounts `brain/`, `inbox/`, and `workspace/drafts/` for chat file access. The `spa` skill runner writes skill JSON artifacts to `workspace/.data/drafts/` by default. Check both locations when looking for recent skill output, or pass `--output-dir workspace/drafts/<skill>` to align with the MCP mount.
+> **Hermes MCP note:** Use **`pga-governed`** for ingest, skills, and proposals. The `spa` skill runner writes skill JSON artifacts to `workspace/.data/drafts/` by default. Check both `workspace/.data/drafts/` and `workspace/drafts/` when looking for recent skill output, or pass `--output-dir workspace/drafts/<skill>`.
 
 ### Allowed write surfaces (draft-by-default)
 
@@ -408,7 +408,7 @@ make eval      # golden skill evals
 | `spa/paths.py` | **Canonical path resolution** |
 | `governance/redaction-rules.yaml` | Secret/PII patterns |
 | `memory/schemas/*.schema.json` | CPO, audit event, memory object shapes |
-| `skills/*/skill.md` | Per-skill contract |
+| `skills/*/SKILL.md` | Per-skill contract |
 | `evals/fixtures/` | Sample inputs for every skill |
 
 ---
