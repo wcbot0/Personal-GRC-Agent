@@ -81,6 +81,7 @@ tool_mappings:
   memory_semantic_upsert: A0
   write_draft_file: A1
   write_local_markdown: A1
+  runtime_init: A1
   write_workspace_draft: A1
   create_git_branch: A1
   create_cpo: A1

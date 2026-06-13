@@ -176,7 +176,7 @@ Acceptance:
 Tasks:
 - Skill scaffold (_template) + scripts/new-skill.sh.
 - Implement meeting-synth, ticket-draft, policy-redline, csf-crosswalk (csf+soc2 tags), daily-brief.
-- Each skill: skill.md, input/output JSON schema, verifiers/, fixtures/, tests/.
+- Each skill: SKILL.md, input/output JSON schema, verifiers/, fixtures/, tests/.
 - Verifier suite: schema, control-mapping-present, secrets-scan, self-critique rubric (retry-once-then-escalate).
 Acceptance:
 - `make ingest FILE=evals/fixtures/meeting_sample.md` produces: ticket proposal file(s), control tags, audit log, and (for policy changes) a redline file + Draft-PR-body file on an `agent/` branch. All verifiers pass on golden fixtures.

@@ -17,8 +17,11 @@ if [[ -e "$DEST" ]]; then
 fi
 
 cp -R "$ROOT/skills/_template" "$DEST"
-cat > "$DEST/skill.md" <<EOF
-# $NAME
+cat > "$DEST/SKILL.md" <<EOF
+---
+name: $NAME
+description: Describe what this skill does. Use when <trigger condition>.
+---
 
 **Risk class:** A1 (local draft)
 

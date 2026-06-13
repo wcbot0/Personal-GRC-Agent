@@ -1,4 +1,7 @@
-# risk-analyst
+---
+name: risk-analyst
+description: Produce FAIR-aligned product/tool risk assessments with STRIDE threat models. Use when reviewing vendor or product risk with findings and gaps.
+---
 
 **Risk class:** A2 (external draft — file-only in MVP)
 
