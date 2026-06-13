@@ -12,6 +12,7 @@ from spa.evidence.export import export_evidence, parse_export_dates
 from spa.governance.approval_queue import ApprovalQueue, ApprovalQueueError
 from spa.ingest import ingest_file
 from spa.paths import get_audit_logs_dir
+from spa.runtime_init import VALID_RUNTIMES
 
 
 @click.group()
@@ -194,6 +195,50 @@ def run_skill(skill_name: str, input_path: str, output_dir: str | None) -> None:
 
     result = _run(skill_name, input_path, output_dir=output_dir)
     click.echo(json.dumps(result, indent=2, default=str))
+
+
+@main.command("init")
+@click.option(
+    "--runtime",
+    required=True,
+    type=click.Choice(list(VALID_RUNTIMES)),
+    help="Runtime profile: cursor, claude, chatgpt, hermes, openclaw",
+)
+@click.option("--dry-run", is_flag=True, help="Print planned changes without writing")
+@click.option("--check", is_flag=True, help="Exit nonzero if glue is missing or stale")
+@click.option("--force", is_flag=True, help="Overwrite user-modified managed files")
+def init_cmd(runtime: str, dry_run: bool, check: bool, force: bool) -> None:
+    """Generate or validate per-runtime glue (MCP registration, agent docs)."""
+    from spa.runtime_init import init_runtime
+
+    try:
+        result = init_runtime(runtime, dry_run=dry_run, check=check, force=force)
+    except ValueError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+
+    if dry_run:
+        for path in result.written:
+            click.echo(f"would write: {path}")
+        for path in result.skipped:
+            click.echo(f"would skip (user-modified): {path}")
+        for path in result.checked:
+            click.echo(f"ok: {path}")
+    else:
+        for path in result.written:
+            click.echo(f"written: {path}")
+        for path in result.skipped:
+            click.echo(f"skipped: {path}")
+        for path in result.checked:
+            click.echo(f"ok: {path}")
+
+    for err in result.errors:
+        click.echo(err, err=True)
+
+    if result.errors and check:
+        sys.exit(1)
+    if result.errors and not dry_run and runtime != "hermes":
+        sys.exit(1)
 
 
 if __name__ == "__main__":
