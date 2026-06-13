@@ -11,6 +11,7 @@ jobs:
     env:
       SPA_DATA_DIR: /tmp/spa_data
       SPA_AUDIT_DIR: /tmp/spa_audit
+      SPA_NO_LLM: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
