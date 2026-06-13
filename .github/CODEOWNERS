@@ -1,5 +1,6 @@
 # Required human review for agent behavior and authoritative content
-/agent/                    @literal:wcbot0
-/skills/                   @literal:wcbot0
-/brain/03-policies/        @literal:wcbot0
-/agent/autonomy-policy.yaml @literal:wcbot0
+# Replace @wcbot0 with your GitHub org/team before publishing.
+/agent/                    @wcbot0
+/skills/                   @wcbot0
+/brain/03-policies/        @wcbot0
+/agent/autonomy-policy.yaml @wcbot0

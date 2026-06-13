@@ -442,5 +442,5 @@ Wire Hermes: `./scripts/setup-hermes.sh` registers **`pga-governed`** only (remo
 
 - **Hermes:** Launch from repo root (`hermes chat`) so this file loads. Use **`pga-governed`** MCP for ingest/skills; browse `brain/` in your editor or via `pga_memory_search`.
 - **Cursor / Claude Code:** This `AGENTS.md` is the workspace rule source. Follow draft-by-default; use terminal `spa` commands for verifiable skill runs.
-- **Cursor rules:** File-scoped path guidance in `.cursor/rules/` — `pga-core.mdc` (always on), `pga-brain-paths.mdc`, `pga-workspace-paths.mdc`, `pga-inbox-paths.mdc`.
+- **Cursor:** Run `spa init --runtime cursor` for local `.cursor/mcp.json` and `pga-runtime.mdc` (not committed — see `.gitignore`). Path routing lives in this file and `spa/paths.py`.
 - **Both:** Explore in chat → execute with `spa` → review artifacts → human approves CPOs for anything A3+.
