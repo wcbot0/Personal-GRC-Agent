@@ -172,6 +172,28 @@ def proposals_reject(cpo_id: str, reason: str, rejected_by: str) -> None:
     click.echo(f"Rejected {cpo['id']}: {reason}")
 
 
+@main.group("cloud")
+def cloud_group() -> None:
+    """Cloud findings commands."""
+
+
+@cloud_group.command("scan")
+@click.option("--provider", default=None, help="Cloud provider (aws|gcp); default: CLOUD_PROVIDER env")
+@click.option("--period", default=None, help="Evidence period label (e.g. 2026-Q2)")
+@click.option("--output-dir", default=None, type=click.Path(file_okay=False), help="Findings output directory")
+def cloud_scan(provider: str | None, period: str | None, output_dir: str | None) -> None:
+    """Run read-only cloud checks → findings JSON, ticket proposals, evidence indexes."""
+    from spa.audit.logger import AuditLogger
+    from spa.cloud_scan import run_cloud_scan
+    from spa.tools.guard import ToolGuard
+
+    audit = AuditLogger()
+    guard = ToolGuard(audit=audit)
+    out = Path(output_dir) if output_dir else None
+    result = run_cloud_scan(provider=provider, period=period, guard=guard, output_dir=out)
+    click.echo(json.dumps(result, indent=2))
+
+
 @main.group("tickets")
 def tickets_group() -> None:
     """Ticket proposal commands."""
