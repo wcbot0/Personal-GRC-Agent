@@ -1,5 +1,5 @@
 # Required human review for agent behavior and authoritative content
-# Replace @wcbot0 with your GitHub org/team before publishing.
+# Forks: replace @wcbot0 with your org/team handles.
 /agent/                    @wcbot0
 /skills/                   @wcbot0
 /brain/03-policies/        @wcbot0

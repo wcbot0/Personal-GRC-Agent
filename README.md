@@ -346,6 +346,25 @@ Full policy: [`agent/autonomy-policy.yaml`](agent/autonomy-policy.yaml)
 
 ---
 
+## 🔐 Privacy and forking
+
+PGA is designed to stay **local-first**. The public repository ships templates, eval fixtures, and governance code — not your organization's live compliance program.
+
+| Do in a **private fork** | Never commit to a **public** repo |
+|--------------------------|-------------------------------------|
+| Authoritative policies (`brain/03-policies/*.md`) | `.env` or API keys |
+| Real meeting notes and inbox content | `workspace/.data/`, `governance/audit-logs/`, `governance/approval-queue/` |
+| Client- or company-specific brain content | `governance/.cpo-signing-key` |
+
+- **Sample brain content** in this repo is illustrative — replace with your policies and evidence.
+- **Test fixtures** under `evals/fixtures/` and `tests/` may contain synthetic secrets or intentional vulnerabilities; see [SECURITY.md](SECURITY.md).
+- **Cursor / IDE config** — run `spa init --runtime cursor` locally; `.cursor/` is not committed.
+- Cloned before June 2026 history rewrite? Re-clone or `git fetch origin && git reset --hard origin/main`.
+
+Full scope: [SECURITY.md](SECURITY.md) (vulnerability reporting, safe defaults, third-party installers).
+
+---
+
 ## 📚 Documentation
 
 | Guide | Audience |

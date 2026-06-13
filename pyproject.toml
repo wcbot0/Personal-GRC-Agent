@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "personal-grc-agent"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-first, draft-by-default GRC copilot (PGA)"
 readme = "README.md"
 license = { text = "MIT" }
