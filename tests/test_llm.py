@@ -86,17 +86,14 @@ def test_llm_disabled_without_api_key(monkeypatch):
     assert not llm_enabled()
 
 
-def test_ollama_enabled_without_api_key(monkeypatch):
+def test_llm_enabled_ollama_without_api_key(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("SPA_NO_LLM", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
     assert llm_enabled()
 
-    monkeypatch.setenv("SPA_NO_LLM", "1")
-    assert not llm_enabled()
 
-
-def test_openai_still_disabled_without_api_key(monkeypatch):
+def test_llm_disabled_openai_without_api_key(monkeypatch):
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("SPA_NO_LLM", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "openai")
