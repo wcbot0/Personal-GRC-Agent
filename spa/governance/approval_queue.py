@@ -1,8 +1,11 @@
 """Change Proposal Object (CPO) approval queue."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
+import secrets
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,7 +15,13 @@ import jsonschema
 
 from spa.audit.logger import AuditLogger
 from spa.memory.redaction import redact_obj
-from spa.paths import CPO_SCHEMA, get_approval_queue_dir, get_proposals_dir
+from spa.paths import CPO_SCHEMA, GOVERNANCE_DIR, get_approval_queue_dir, get_proposals_dir
+
+CPO_SIGNING_KEY_ENV = "SPA_CPO_SIGNING_KEY"
+CPO_SIGNING_KEY_FILE_ENV = "SPA_CPO_SIGNING_KEY_FILE"
+DEFAULT_CPO_SIGNING_KEY_FILE = GOVERNANCE_DIR / ".cpo-signing-key"
+CPO_SIGNATURE_FIELDS = frozenset({"approval_signature", "approval_audit_event_id"})
+LOCAL_CLI_APPROVER = "local-cli-operator@unverified"
 
 
 class ApprovalQueueError(Exception):
@@ -28,6 +37,29 @@ def _allowed_risk_classes(max_risk: str) -> set[str]:
     return set(RISK_ORDER[: RISK_ORDER.index(max_risk) + 1])
 
 
+def _get_signing_key() -> bytes:
+    env_key = os.environ.get(CPO_SIGNING_KEY_ENV)
+    if env_key:
+        return env_key.encode("utf-8")
+    key_path = Path(os.environ.get(CPO_SIGNING_KEY_FILE_ENV, str(DEFAULT_CPO_SIGNING_KEY_FILE)))
+    if key_path.exists():
+        return key_path.read_bytes().strip()
+    key_path.parent.mkdir(parents=True, exist_ok=True)
+    key = secrets.token_bytes(32)
+    key_path.write_bytes(key)
+    key_path.chmod(0o600)
+    return key
+
+
+def _cpo_signing_payload(cpo: dict[str, Any]) -> bytes:
+    payload = {k: v for k, v in cpo.items() if k not in CPO_SIGNATURE_FIELDS}
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _sign_cpo(cpo: dict[str, Any]) -> str:
+    return hmac.new(_get_signing_key(), _cpo_signing_payload(cpo), hashlib.sha256).hexdigest()
+
+
 class ApprovalQueue:
     def __init__(self, queue_dir: Path | None = None, audit: AuditLogger | None = None) -> None:
         self.queue_dir = queue_dir or get_approval_queue_dir()
@@ -39,7 +71,22 @@ class ApprovalQueue:
         return self.queue_dir / f"{cpo_id}.json"
 
     def _validate(self, cpo: dict[str, Any]) -> None:
-        jsonschema.validate(cpo, self._schema)
+        schema_payload = {k: v for k, v in cpo.items() if k not in CPO_SIGNATURE_FIELDS}
+        jsonschema.validate(schema_payload, self._schema)
+
+    def _verify_approved_cpo(self, cpo: dict[str, Any]) -> bool:
+        if cpo.get("status") != "approved":
+            return False
+        signature = cpo.get("approval_signature")
+        audit_event_id = cpo.get("approval_audit_event_id")
+        if not signature or not audit_event_id:
+            return False
+        expected = _sign_cpo(cpo)
+        return hmac.compare_digest(signature, expected)
+
+    def _assert_approved_integrity(self, cpo: dict[str, Any], cpo_id: str) -> None:
+        if not self._verify_approved_cpo(cpo):
+            raise ApprovalQueueError(f"CPO {cpo_id} approval integrity check failed")
 
     def create(
         self,
@@ -129,8 +176,14 @@ class ApprovalQueue:
             "Proposed change:",
             json.dumps(change, indent=2),
         ]
+        path_warning = self._path_validation_warning(change)
+        if path_warning:
+            lines.extend(["", f"WARNING: {path_warning}"])
         if cpo["action_type"] == "assign_human":
-            ticket_preview = self._assign_human_diff(change)
+            try:
+                ticket_preview = self._assign_human_diff(change)
+            except ApprovalQueueError:
+                ticket_preview = None
             if ticket_preview:
                 lines.extend(["", "Diff:", ticket_preview])
         return "\n".join(lines).strip()
@@ -138,6 +191,15 @@ class ApprovalQueue:
     def get_detail(self, cpo_id: str) -> dict[str, Any]:
         cpo = self.get(cpo_id)
         return {**cpo, "preview": self.build_preview(cpo)}
+
+    def _path_validation_warning(self, change: dict[str, Any]) -> str | None:
+        if not change.get("path"):
+            return None
+        try:
+            self._resolve_ticket_path(change)
+        except ApprovalQueueError as exc:
+            return str(exc)
+        return None
 
     def _assign_human_diff(self, change: dict[str, Any]) -> str | None:
         assignee = change.get("assignee")
@@ -151,22 +213,36 @@ class ApprovalQueue:
         return f"assignee: {before} -> {assignee}"
 
     def _resolve_ticket_path(self, change: dict[str, Any]) -> Path | None:
+        base = get_proposals_dir().resolve()
         if change.get("path"):
-            return Path(change["path"])
+            raw = Path(change["path"])
+            resolved = raw.resolve() if raw.is_absolute() else (base / raw).resolve()
+            if not resolved.is_relative_to(base):
+                raise ApprovalQueueError(
+                    f"proposed_change.path outside proposals dir: {change['path']}"
+                )
+            return resolved
         ticket_id = change.get("ticket_id")
         if not ticket_id:
             return None
-        tickets_dir = get_proposals_dir() / "tickets"
+        tickets_dir = base / "tickets"
         safe_id = str(ticket_id).replace("/", "-")
         matches = sorted(tickets_dir.glob(f"*{safe_id}*.json"))
         if matches:
             return matches[0]
         return tickets_dir / f"ticket-proposal-{safe_id}.json"
 
-    def approve(self, cpo_id: str, approved_by: str = "human-reviewer") -> dict[str, Any]:
+    def approve(self, cpo_id: str, *, approved_by: str = LOCAL_CLI_APPROVER) -> dict[str, Any]:
+        if not approved_by or not approved_by.strip():
+            raise ApprovalQueueError("approved_by is required")
+        approved_by = approved_by.strip()
         cpo = self.get(cpo_id)
         if cpo["status"] != "pending":
             raise ApprovalQueueError(f"CPO {cpo_id} is not pending (status={cpo['status']})")
+        if approved_by == cpo.get("requested_by"):
+            raise ApprovalQueueError("Self-approval is not allowed")
+        if approved_by == cpo.get("run_id"):
+            raise ApprovalQueueError("Self-approval is not allowed")
         now = datetime.now(timezone.utc).isoformat()
         cpo.update(
             {
@@ -177,8 +253,7 @@ class ApprovalQueue:
             }
         )
         self._validate(cpo)
-        self._path_for(cpo_id).write_text(json.dumps(cpo, indent=2), encoding="utf-8")
-        self.audit.emit(
+        audit_event = self.audit.emit(
             "cpo_approved",
             task_class="governance",
             risk_class=cpo["action_class"],
@@ -186,9 +261,13 @@ class ApprovalQueue:
             cpo_id=cpo_id,
             outputs={"approved_by": approved_by},
         )
+        cpo["approval_audit_event_id"] = audit_event["event_id"]
+        cpo["updated_at"] = datetime.now(timezone.utc).isoformat()
+        cpo["approval_signature"] = _sign_cpo(cpo)
+        self._path_for(cpo_id).write_text(json.dumps(cpo, indent=2), encoding="utf-8")
         return cpo
 
-    def reject(self, cpo_id: str, reason: str, rejected_by: str = "human-reviewer") -> dict[str, Any]:
+    def reject(self, cpo_id: str, reason: str, rejected_by: str = LOCAL_CLI_APPROVER) -> dict[str, Any]:
         if not reason or not reason.strip():
             raise ApprovalQueueError("Rejection reason is required")
         cpo = self.get(cpo_id)
@@ -222,6 +301,7 @@ class ApprovalQueue:
         cpo = self.get(cpo_id)
         if cpo["status"] != "approved":
             raise ApprovalQueueError(f"CPO {cpo_id} must be approved before execution (status={cpo['status']})")
+        self._assert_approved_integrity(cpo, cpo_id)
 
         guard = ToolGuard(queue=self, audit=self.audit)
         action_type = cpo["action_type"]
@@ -337,7 +417,8 @@ class ApprovalQueue:
     def approve_and_execute(
         self,
         cpo_id: str,
-        approved_by: str = "human-reviewer",
+        *,
+        approved_by: str = LOCAL_CLI_APPROVER,
     ) -> dict[str, Any]:
         cpo = self.approve(cpo_id, approved_by=approved_by)
         result = self.execute(cpo_id)
@@ -348,7 +429,7 @@ class ApprovalQueue:
         *,
         action_type: str | None = None,
         max_risk: str = "A3",
-        approved_by: str = "human-reviewer",
+        approved_by: str = LOCAL_CLI_APPROVER,
         execute: bool = True,
     ) -> list[dict[str, Any]]:
         allowed = _allowed_risk_classes(max_risk)
@@ -366,6 +447,7 @@ class ApprovalQueue:
 
     def is_approved(self, cpo_id: str) -> bool:
         try:
-            return self.get(cpo_id)["status"] == "approved"
+            cpo = self.get(cpo_id)
         except ApprovalQueueError:
             return False
+        return self._verify_approved_cpo(cpo)

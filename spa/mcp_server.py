@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -14,9 +15,20 @@ from spa.governance.approval_queue import ApprovalQueue, ApprovalQueueError
 from spa.ingest import ingest_file
 from spa.memory.episodic import EpisodicMemory
 from spa.memory.semantic import SemanticMemory
-from spa.paths import ROOT, get_audit_logs_dir
+from spa.paths import BRAIN_DIR, EVALS_DIR, INBOX_DIR, ROOT, WORKSPACE_DIR, get_audit_logs_dir
 from spa.skills.runner import run_skill
 from spa.tools.guard import ToolBlockedError, ToolGuard
+
+_READ_ROOTS = (
+    INBOX_DIR,
+    BRAIN_DIR,
+    WORKSPACE_DIR,
+    EVALS_DIR,
+)
+_WRITE_ROOTS = (
+    WORKSPACE_DIR,
+    BRAIN_DIR / "evidence",
+)
 
 MCP_TOOL_NAMES = frozenset(
     {
@@ -48,13 +60,39 @@ def _json_result(payload: Any) -> str:
     return json.dumps(payload, indent=2, default=str)
 
 
+def _resolve_repo_path(path: str | Path) -> Path:
+    p = Path(path)
+    if not p.is_absolute():
+        p = ROOT / p
+    return p.resolve()
+
+
+def _confine(path: str | Path, allowed_roots: tuple[Path, ...], *, label: str = "path") -> Path:
+    resolved = _resolve_repo_path(path)
+    root = ROOT.resolve()
+    if not resolved.is_relative_to(root):
+        raise ValueError(f"{label} must be under repository root")
+    roots = tuple(r.resolve() for r in allowed_roots)
+    if not any(resolved.is_relative_to(r) for r in roots):
+        allowed = ", ".join(str(r.relative_to(root)) for r in roots)
+        raise ValueError(f"{label} must be under one of: {allowed}")
+    return resolved
+
+
 def _ensure_known_tool(tool_name: str, guard: ToolGuard) -> None:
     if tool_name not in MCP_TOOL_NAMES:
         guard.classify(tool_name)
         guard.check_allowed(tool_name)
 
 
-def _execute_human_gate(tool_name: str, fn: Any, *, confirm: bool, guard: ToolGuard | None = None) -> Any:
+def _execute_human_gate(
+    tool_name: str,
+    fn: Any,
+    *,
+    confirm: bool,
+    guard: ToolGuard | None = None,
+    cpo_id: str | None = None,
+) -> Any:
     """A3 human-gate actions: require explicit confirm and emit audit events.
 
     `confirm=true` is client-asserted — the audit `human_confirmed` metadata records
@@ -89,13 +127,20 @@ def _execute_human_gate(tool_name: str, fn: Any, *, confirm: bool, guard: ToolGu
         )
         raise ToolBlockedError(f"Tool '{tool_name}' blocked (class {action_class})")
 
+    cpo_label = f" cpo_id={cpo_id}" if cpo_id else ""
+    print(
+        f"WARNING [PGA MCP]: Client asserted human confirmation for action={tool_name}{cpo_label} "
+        "(client-asserted only; not independent verification)",
+        file=sys.stderr,
+    )
+
     guard.audit.emit(
         "tool_start",
         task_class="mcp",
         risk_class=action_class,
         tools_called=[tool_name],
         approval_required=True,
-        metadata={"human_confirmed": True},
+        metadata={"human_confirmed": True, "cpo_id": cpo_id} if cpo_id else {"human_confirmed": True},
     )
     result = fn()
     guard.audit.emit(
@@ -138,9 +183,10 @@ def memory_search(query: str, k: int = 5, guard: ToolGuard | None = None) -> dic
 def pga_ingest(path: str) -> str:
     """Ingest a file into episodic + semantic memory (and auto-pipeline when meeting signals match)."""
     guard = _guard()
-    file_path = Path(path)
-    if not file_path.is_absolute():
-        file_path = ROOT / file_path
+    try:
+        file_path = _confine(path, _READ_ROOTS, label="path")
+    except ValueError as exc:
+        return _json_result({"error": str(exc)})
 
     def _ingest() -> dict[str, Any]:
         return ingest_file(file_path, audit=guard.audit)
@@ -164,15 +210,19 @@ def pga_ingest(path: str) -> str:
 def pga_run_skill(skill: str, input_path: str, output_dir: str | None = None) -> str:
     """Run a drafting skill with verifiers and audit trail."""
     guard = _guard()
-    in_path = Path(input_path)
-    if not in_path.is_absolute():
-        in_path = ROOT / in_path
+    try:
+        in_path = _confine(input_path, _READ_ROOTS, label="input_path")
+        confined_output_dir: str | None = None
+        if output_dir is not None:
+            confined_output_dir = str(_confine(output_dir, _WRITE_ROOTS, label="output_dir"))
+    except ValueError as exc:
+        return _json_result({"error": str(exc)})
 
     def _run() -> dict[str, Any]:
         return run_skill(
             skill,
             in_path,
-            output_dir=output_dir,
+            output_dir=confined_output_dir,
             audit=guard.audit,
             guard=guard,
         )
@@ -230,7 +280,9 @@ def pga_proposals_approve(id: str, confirm: bool = False) -> str:
         return queue.approve_and_execute(id)
 
     try:
-        result = _execute_human_gate("pga_proposals_approve", _approve, confirm=confirm, guard=guard)
+        result = _execute_human_gate(
+            "pga_proposals_approve", _approve, confirm=confirm, guard=guard, cpo_id=id
+        )
     except ApprovalQueueError as exc:
         return _json_result({"error": str(exc)})
     return _json_result(result)
@@ -247,20 +299,26 @@ def pga_proposals_reject(id: str, reason: str, confirm: bool = False) -> str:
         return {"cpo": cpo}
 
     try:
-        result = _execute_human_gate("pga_proposals_reject", _reject, confirm=confirm, guard=guard)
+        result = _execute_human_gate(
+            "pga_proposals_reject", _reject, confirm=confirm, guard=guard, cpo_id=id
+        )
     except ApprovalQueueError as exc:
         return _json_result({"error": str(exc)})
     return _json_result(result)
 
 
 @mcp.tool()
-def pga_audit_verify(from_date: str | None = None, to_date: str | None = None) -> str:
-    """Verify hash chain integrity of audit JSONL logs."""
+def pga_audit_verify(
+    from_date: str | None = None, to_date: str | None = None, allow_legacy: bool = False
+) -> str:
+    """Verify hash chain integrity of audit JSONL logs (allow_legacy mirrors CLI --allow-legacy)."""
     guard = _guard()
 
     def _verify() -> dict[str, Any]:
         start, end = parse_export_dates(from_date, to_date)
-        result = verify_chain(get_audit_logs_dir(), start=start, end=end)
+        result = verify_chain(
+            get_audit_logs_dir(), start=start, end=end, require_full_chain=not allow_legacy
+        )
         return {
             "valid": result.valid,
             "event_count": result.event_count,

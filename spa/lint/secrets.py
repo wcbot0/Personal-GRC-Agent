@@ -30,9 +30,15 @@ SKIP_FILES = {
     "governance/redaction-rules.yaml",
 }
 
+_REDACTION_PLACEHOLDER = re.compile(r"\[REDACTED[^\]]*\]")
+
 PATTERNS = [
     (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS access key"),
-    (re.compile(r"-----BEGIN (?:RSA |EC )?PRIVATE KEY-----"), "Private key block"),
+    (
+        re.compile(r"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----"),
+        "Private key block",
+    ),
+    (re.compile(r"-----BEGIN PGP PRIVATE KEY BLOCK-----"), "PGP private key block"),
     (
         re.compile(
             r"(?i)\b(api[_-]?key|secret|password)\s*=\s*['\"][^'\"]{12,}['\"]"
@@ -42,12 +48,23 @@ PATTERNS = [
 ]
 
 
+def _match_is_redacted(line: str, match: re.Match[str]) -> bool:
+    matched = match.group(0)
+    if "[REDACTED" in matched:
+        return True
+    for placeholder in _REDACTION_PLACEHOLDER.finditer(line):
+        if match.start() >= placeholder.start() and match.end() <= placeholder.end():
+            return True
+    return False
+
+
 def scan_text_for_secrets(text: str) -> list[tuple[str, int]]:
     """Return (label, line_number) for each pattern match in text."""
     hits: list[tuple[str, int]] = []
     for line_no, line in enumerate(text.splitlines(), start=1):
         for pattern, label in PATTERNS:
-            if pattern.search(line):
+            match = pattern.search(line)
+            if match and not _match_is_redacted(line, match):
                 hits.append((label, line_no))
                 break
     return hits
@@ -75,7 +92,7 @@ def scan_repo(root: Path, *, skip_prefixes: tuple[str, ...] = ()) -> list[str]:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if "REDACTED" in text or "example" in rel_str.lower():
+        if "example" in rel_str.lower():
             continue
         for label, line_no in scan_text_for_secrets(text):
             findings.append(f"{rel}:{line_no}: {label}")

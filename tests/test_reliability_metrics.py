@@ -58,6 +58,25 @@ def test_m3_loads_latest_eval_history(tmp_path: Path):
     assert m3["total_skills"] == 9
 
 
+def test_daily_brief_uses_approval_queue_dir_override(tmp_path: Path, monkeypatch):
+    custom_queue = tmp_path / "custom-queue"
+    custom_queue.mkdir()
+    pending_cpo = {
+        "id": "cpo-test-001",
+        "status": "pending",
+        "title": "Custom queue CPO",
+        "action_class": "A3",
+    }
+    (custom_queue / "cpo-test-001.json").write_text(json.dumps(pending_cpo), encoding="utf-8")
+
+    monkeypatch.setenv("SPA_APPROVAL_QUEUE_DIR", str(custom_queue))
+    monkeypatch.setattr("spa.skills.daily_brief.get_audit_logs_dir", lambda: tmp_path / "audit")
+
+    output = run("Morning triage", context={"output_dir": tmp_path / "out"})
+    assert output["pending_approvals"] == 1
+    assert "Custom queue CPO" in output["brief_markdown"]
+
+
 def test_daily_brief_renders_m1_m2_m3(tmp_path: Path, monkeypatch):
     audit_dir = tmp_path / "audit"
     history = tmp_path / "eval-history"

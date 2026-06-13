@@ -73,8 +73,10 @@ def test_mcp_ingest_and_run_skill_produce_audited_artifacts(mcp_env):
     ingest_payload = json.loads(pga_ingest(str(fixture)))
     assert ingest_payload["meeting_synth"] is not None
 
+    out_dir = ROOT / "workspace" / "drafts" / "meeting-synth-mcp-test"
+    out_dir.mkdir(parents=True, exist_ok=True)
     skill_payload = json.loads(
-        pga_run_skill("meeting-synth", str(fixture), output_dir=str(mcp_env["data_dir"] / "drafts" / "meeting-synth"))
+        pga_run_skill("meeting-synth", str(fixture), output_dir=str(out_dir))
     )
     assert skill_payload["skill"] == "meeting-synth"
     assert Path(skill_payload["artifact"]).exists()
@@ -119,7 +121,7 @@ async def test_mcp_stdio_round_trip(mcp_env):
         cwd=str(ROOT),
     )
     fixture = ROOT / "evals/fixtures/meeting_sample.md"
-    out_dir = mcp_env["data_dir"] / "drafts" / "meeting-synth"
+    out_dir = ROOT / "workspace" / "drafts" / "meeting-synth-stdio-test"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     async with stdio_client(server_params) as (read, write):
@@ -148,3 +150,82 @@ async def test_mcp_stdio_round_trip(mcp_env):
 
     chain = verify_chain(mcp_env["audit_dir"])
     assert chain.valid
+
+
+def test_pga_ingest_rejects_path_outside_allowlist(mcp_env):
+    from spa.mcp_server import pga_ingest
+
+    payload = json.loads(pga_ingest("/etc/passwd"))
+    assert "error" in payload
+
+    payload = json.loads(pga_ingest("../../etc/passwd"))
+    assert "error" in payload
+
+
+def test_pga_run_skill_rejects_unsafe_paths(mcp_env):
+    from spa.mcp_server import pga_run_skill
+
+    fixture = ROOT / "evals/fixtures/meeting_sample.md"
+
+    read_payload = json.loads(pga_run_skill("meeting-synth", "/etc/passwd"))
+    assert "error" in read_payload
+
+    write_payload = json.loads(
+        pga_run_skill("meeting-synth", str(fixture), output_dir="/tmp/pga-escape")
+    )
+    assert "error" in write_payload
+
+    traversal_payload = json.loads(
+        pga_run_skill("meeting-synth", str(fixture), output_dir="../../..")
+    )
+    assert "error" in traversal_payload
+
+
+def test_pga_proposals_approve_with_confirm_logs_warning(mcp_env, capsys):
+    from spa.governance.approval_queue import ApprovalQueue
+    from spa.mcp_server import pga_proposals_approve
+
+    queue = ApprovalQueue(audit=AuditLogger(log_dir=mcp_env["audit_dir"]))
+    cpo = queue.create(
+        action_class="A3",
+        action_type="assign_human",
+        title="Test assign",
+        description="Human workflow change",
+        risk_rationale="Test CPO for MCP warning audit",
+        proposed_change={"assignee": "alice"},
+    )
+    cpo_id = cpo["id"]
+
+    pga_proposals_approve(cpo_id, confirm=True)
+
+    captured = capsys.readouterr()
+    assert "WARNING [PGA MCP]" in captured.err
+    assert "pga_proposals_approve" in captured.err
+    assert cpo_id in captured.err
+
+
+def test_pga_audit_verify_allow_legacy(mcp_env):
+    from spa.audit.logger import AuditLogger
+    from spa.mcp_server import pga_audit_verify
+
+    legacy_event = {
+        "event_id": "legacy-1",
+        "run_id": "r1",
+        "timestamp": "2026-06-05T10:00:00+00:00",
+        "event_type": "old",
+        "task_class": "test",
+        "risk_class": "A0",
+    }
+    legacy_file = mcp_env["audit_dir"] / "audit-2026-06-05.jsonl"
+    legacy_file.write_text(json.dumps(legacy_event) + "\n", encoding="utf-8")
+
+    AuditLogger(log_dir=mcp_env["audit_dir"]).emit("new", task_class="test", risk_class="A0")
+
+    allowed = json.loads(pga_audit_verify(allow_legacy=True))
+    assert allowed["valid"] is True
+    assert allowed["legacy_count"] == 1
+    assert allowed["warnings"]
+
+    default = json.loads(pga_audit_verify())
+    assert default["valid"] is False
+    assert any("legacy event without hash" in b["reason"] for b in default["breaks"])

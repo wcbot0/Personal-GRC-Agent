@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from spa.paths import APPROVAL_QUEUE_DIR, get_audit_logs_dir, get_proposals_dir, resolve_output_dir
+from spa.paths import get_approval_queue_dir, get_audit_logs_dir, get_proposals_dir, resolve_output_dir
 from spa.skills.io import write_text_file
 
 
@@ -22,7 +22,7 @@ def _list_pending_cpos(queue_dir: Path) -> list[dict[str, Any]]:
 
 
 def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
-    pending = _list_pending_cpos(APPROVAL_QUEUE_DIR)
+    pending = _list_pending_cpos(get_approval_queue_dir())
 
     proposals_dir = get_proposals_dir()
     proposals = list(proposals_dir.glob("*.md")) if proposals_dir.exists() else []
