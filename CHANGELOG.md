@@ -87,3 +87,52 @@ All notable changes to Personal GRC Agent (PGA) are documented here.
 - Hermes init invokes `setup-hermes.sh` (requires Hermes installed locally)
 - E2E scripts degrade to MCP stdio when runtime binary absent (`SKIPPED-RUNTIME-NATIVE`)
 - OpenClaw config uses `.openclaw/openclaw.json` (workspace-local, not global `~/.openclaw/`)
+
+## [Unreleased] — Phase 3 Useful Depth
+
+### Milestone 3.1 — Linear live A2 writes behind CPO
+
+- `spa tickets publish` — propose AI-Proposed ticket drafts for external publish (A2 notify + A4 CPO)
+- Linear client: AI-Proposed label, provenance comment, `ApprovalQueue.execute` for `create_ticket_live`
+- Tool mappings: `create_ai_proposed_ticket`, `add_provenance_comment` (A2)
+- Write-disabled default unchanged; live writes require `connectors.ticket.live_write_enabled` + approved CPO
+
+### Milestone 3.2 — Cloud findings pipeline
+
+- `spa cloud scan` — read-only checks from `cloud-checks.yaml` → findings JSON, gap tickets, evidence index append
+- `scripts/cloud-scan-cron.sh` — cron-friendly wrapper (documented, not registered)
+- Tests: `tests/test_cloud_scan.py` (fixture provider, zero live cloud)
+
+### Milestone 3.3 — Questionnaire skill (CAIQ/SIG)
+
+- New `questionnaire` skill with brain-grounded citations, `needs_human` flags, citation verifier
+- Golden eval lane + `evals/fixtures/questionnaire_input.md`
+
+### Milestone 3.4 — Brain packs v1
+
+- `spa brain add <pack>` / `spa brain list` / `spa brain list --check`
+- Packs: `iso-42001`, `nist-ai-rmf` under `brain/packs/` → `brain/04-standards/<pack>/`
+- Idempotent install + semantic re-index via `seed_brain()`
+
+### Milestone 3.5 — Reliability metrics M1/M2
+
+- `spa/governance/reliability_metrics.py` — M1 first-pass acceptance, M2 time-to-detect from audit/CPO history
+- M3 loaded from `governance/eval-history/`; all three rendered in `daily-brief` output
+- Persisted `m1-m2-{timestamp}.json` reports alongside M3
+
+### Quality gates (branch)
+
+| Suite | Result |
+|-------|--------|
+| `pytest tests/` | 182 passed |
+| `make eval` | 9/9 skills |
+| `make lint` | policy-lint + secret-scan OK |
+| `make redteam` | 30 cases OK |
+| `spa audit verify` | valid |
+
+### Deviations
+
+- Linear live writes remain A4 (`create_ticket_live`); A2 `create_ai_proposed_ticket` is notify-only pre-CPO
+- Cloud provider registry still requires `live_write_enabled` for AWS/GCP reads (existing Phase 2 behavior)
+- M1 uses skill_complete/skill_failed audit proxy until edit-distance tracking on CPO outcomes lands
+- Phase 3 handoff doc committed separately (`docs/HANDOFF-phase3.md`); orchestrator merges to main

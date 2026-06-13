@@ -136,14 +136,18 @@ def _mock_response(payload: dict[str, Any]) -> MagicMock:
     return resp
 
 
-def _make_create_live_cpo(queue: ApprovalQueue) -> dict[str, Any]:
+def _make_create_live_cpo(queue: ApprovalQueue, ticket: dict[str, Any] | None = None) -> dict[str, Any]:
+    ticket = ticket or {"id": "AI-2", "title": "New GRC ticket", "description": "From CPO"}
     return queue.create(
         action_class="A4",
         action_type="create_ticket_live",
         title="Create live Linear ticket",
         description="Authoritative ticket write",
         risk_rationale="Creates issue in Linear",
-        proposed_change={"teamId": "team-fixed-abc", "projectId": "proj-optional"},
+        proposed_change={
+            "ticket": ticket,
+            "provenance": {"skill": "ticket-draft", "input_sha256": "abc", "run_id": "run-1"},
+        },
     )
 
 
@@ -203,18 +207,43 @@ def test_create_live_without_approved_cpo_refuses_zero_api_calls(
     assert refused[0]["outputs"]["status"] == "refused"
 
 
+def _route_create_with_label_and_comment(mock_http_client: MagicMock) -> None:
+    def _post(url, **kwargs):
+        query = kwargs["json"]["query"]
+        if "TeamLabels" in query:
+            return _mock_response(
+                {"data": {"team": {"labels": {"nodes": [{"id": "label-ai", "name": "AI-Proposed"}]}}}}
+            )
+        if "issueCreate" in query:
+            return _mock_response(_create_response())
+        if "issueAddLabel" in query:
+            return _mock_response({"data": {"issueAddLabel": {"success": True}}})
+        if "CommentCreate" in query:
+            return _mock_response(
+                {"data": {"commentCreate": {"success": True, "comment": {"id": "c1", "body": "prov"}}}}
+            )
+        return _mock_response({"data": {}})
+
+    mock_http_client.post.side_effect = _post
+
+
 def test_create_live_with_approved_cpo_issues_to_fixed_team(
     guard_setup, linear_config, mock_http_client
 ):
     guard, queue, audit_dir = guard_setup
     cpo = _make_create_live_cpo(queue)
     queue.approve(cpo["id"])
-    mock_http_client.post.return_value = _mock_response(_create_response())
+    _route_create_with_label_and_comment(mock_http_client)
     client = LinearGraphQLClient(linear_config.api_key, http_client=mock_http_client)
     provider = LinearTicketProvider(guard=guard, config=linear_config, client=client)
 
     result = provider.create_live(
-        {"id": "AI-2", "title": "New GRC ticket", "description": "From CPO"},
+        {
+            "id": "AI-2",
+            "title": "New GRC ticket",
+            "description": "From CPO",
+            "provenance": {"skill": "ticket-draft", "input_sha256": "deadbeef", "run_id": "run-test"},
+        },
         cpo_id=cpo["id"],
     )
 
@@ -222,14 +251,19 @@ def test_create_live_with_approved_cpo_issues_to_fixed_team(
     assert result["ticket"]["id"] == "GRC-202"
     assert result["ticket"]["team_id"] == linear_config.team_id
     assert result["ticket"]["assignee"] == "unassigned"
-    mock_http_client.post.assert_called_once()
-    mutation_vars = mock_http_client.post.call_args.kwargs["json"]["variables"]["input"]
+    assert result["ticket"]["label"] == "AI-Proposed"
+    assert mock_http_client.post.call_count >= 3
+    mutation_vars = mock_http_client.post.call_args_list[0].kwargs["json"]["variables"]["input"]
     assert mutation_vars["teamId"] == linear_config.team_id
     assert mutation_vars["projectId"] == linear_config.project_id
     events = _read_audit_events(audit_dir)
     executed = [e for e in events if e["event_type"] == "ticket_create_live"]
     assert any(e["outputs"]["status"] == "executed" for e in executed)
     assert "tool_complete" in [e["event_type"] for e in events]
+    assert any(
+        e["event_type"] == "tool_notify" and "add_provenance_comment" in e.get("tools_called", [])
+        for e in events
+    )
 
 
 def test_assign_without_approved_cpo_refuses_zero_api_calls(

@@ -1,4 +1,4 @@
 {
   "required_fields": ["brief_markdown", "control_tags"],
-  "brief_contains": ["Daily Security Brief", "Pending approvals"]
+  "brief_contains": ["Daily Security Brief", "Pending approvals", "Reliability metrics", "M1 first-pass acceptance", "M3 verifier pass rate"]
 }

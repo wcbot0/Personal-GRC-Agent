@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 
-def main() -> int:
+def seed_brain() -> int:
     brain_dir = ROOT / "brain"
     if not brain_dir.exists():
         print("[seed_brain] brain/ not found; nothing to seed")
@@ -37,10 +37,15 @@ def main() -> int:
             )
             count += 1
         print(f"[seed_brain] Seeded {count} brain documents")
-        return 0
+        return count
     except Exception as exc:  # noqa: BLE001 — bootstrap tolerance
         print(f"[seed_brain] Seed deferred: {exc}")
         return 0
+
+
+def main() -> int:
+    seed_brain()
+    return 0
 
 
 if __name__ == "__main__":

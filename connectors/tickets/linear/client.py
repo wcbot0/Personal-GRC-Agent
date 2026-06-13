@@ -54,6 +54,42 @@ mutation IssueUpdate($id: String!, $input: IssueUpdateInput!) {
 }
 """
 
+_TEAM_LABELS_QUERY = """
+query TeamLabels($teamId: String!) {
+  team(id: $teamId) {
+    labels {
+      nodes { id name }
+    }
+  }
+}
+"""
+
+_ISSUE_LABEL_CREATE_MUTATION = """
+mutation IssueLabelCreate($input: IssueLabelCreateInput!) {
+  issueLabelCreate(input: $input) {
+    success
+    issueLabel { id name }
+  }
+}
+"""
+
+_ISSUE_ADD_LABEL_MUTATION = """
+mutation IssueAddLabel($id: String!, $labelId: String!) {
+  issueAddLabel(id: $id, labelId: $labelId) {
+    success
+  }
+}
+"""
+
+_COMMENT_CREATE_MUTATION = """
+mutation CommentCreate($input: CommentCreateInput!) {
+  commentCreate(input: $input) {
+    success
+    comment { id body }
+  }
+}
+"""
+
 
 class LinearAPIError(RuntimeError):
     pass
@@ -127,3 +163,45 @@ class LinearGraphQLClient:
         if not issue:
             raise LinearAPIError("issueUpdate returned no issue")
         return issue
+
+    def list_team_labels(self, team_id: str) -> list[dict[str, Any]]:
+        data = self.graphql(_TEAM_LABELS_QUERY, {"teamId": team_id})
+        team = data.get("team")
+        if not team:
+            return []
+        return team.get("labels", {}).get("nodes", [])
+
+    def create_label(self, team_id: str, name: str) -> dict[str, Any]:
+        data = self.graphql(
+            _ISSUE_LABEL_CREATE_MUTATION,
+            {"input": {"teamId": team_id, "name": name, "color": "#9b59b6"}},
+        )
+        result = data.get("issueLabelCreate") or {}
+        if not result.get("success"):
+            raise LinearAPIError("issueLabelCreate returned success=false")
+        label = result.get("issueLabel")
+        if not label:
+            raise LinearAPIError("issueLabelCreate returned no label")
+        return label
+
+    def get_or_create_label(self, team_id: str, name: str) -> dict[str, Any]:
+        for label in self.list_team_labels(team_id):
+            if (label.get("name") or "").lower() == name.lower():
+                return label
+        return self.create_label(team_id, name)
+
+    def add_label_to_issue(self, issue_id: str, label_id: str) -> None:
+        data = self.graphql(_ISSUE_ADD_LABEL_MUTATION, {"id": issue_id, "labelId": label_id})
+        result = data.get("issueAddLabel") or {}
+        if not result.get("success"):
+            raise LinearAPIError("issueAddLabel returned success=false")
+
+    def create_comment(self, issue_id: str, body: str) -> dict[str, Any]:
+        data = self.graphql(_COMMENT_CREATE_MUTATION, {"input": {"issueId": issue_id, "body": body}})
+        result = data.get("commentCreate") or {}
+        if not result.get("success"):
+            raise LinearAPIError("commentCreate returned success=false")
+        comment = result.get("comment")
+        if not comment:
+            raise LinearAPIError("commentCreate returned no comment")
+        return comment

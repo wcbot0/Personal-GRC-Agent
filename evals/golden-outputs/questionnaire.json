@@ -1,0 +1,6 @@
+{
+  "required_fields": ["skill", "questionnaire_type", "answers", "control_tags"],
+  "min_answers": 3,
+  "min_cited": 1,
+  "min_needs_human": 1
+}

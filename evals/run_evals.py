@@ -24,6 +24,7 @@ SKILLS = {
     "evidence-pack": "evals/fixtures/evidence_pack_input.md",
     "risk-analyst": "evals/fixtures/risk_analyst_input.md",
     "repo-security-review": "evals/fixtures/repo_security_review_input.md",
+    "questionnaire": "evals/fixtures/questionnaire_input.md",
 }
 
 M3_MIN_FIRST_PASS_RATE = float(os.environ.get("SPA_M3_MIN_FIRST_PASS_RATE", "1.0"))
@@ -125,6 +126,16 @@ def score_output(skill: str, output: dict, verifications: list[dict]) -> list[st
                 errors.append(f"{skill}: summary missing '{phrase}'")
         if len(output.get("control_tags", [])) < golden.get("min_control_tags", 1):
             errors.append(f"{skill}: expected control tags")
+
+    if skill == "questionnaire":
+        if len(output.get("answers", [])) < golden.get("min_answers", 1):
+            errors.append(f"{skill}: expected min answers")
+        cited = sum(1 for a in output.get("answers", []) if a.get("citations"))
+        if cited < golden.get("min_cited", 1):
+            errors.append(f"{skill}: expected cited answers")
+        needs_human = sum(1 for a in output.get("answers", []) if a.get("needs_human"))
+        if needs_human < golden.get("min_needs_human", 0):
+            errors.append(f"{skill}: expected needs_human answers")
 
     failed_verifiers = [v for v in verifications if not v.get("passed")]
     if failed_verifiers:
