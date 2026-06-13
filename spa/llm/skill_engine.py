@@ -107,7 +107,9 @@ def build_messages(
         f"Skill contract:\n{skill_md}\n\n"
         f"Respond with a single JSON object matching this schema:\n"
         f"{json.dumps(schema, indent=2)}\n\n"
-        "Include control_tags using CSF:, SOC2:, and 800-53: prefixes. "
+        "Include control_tags using CSF:, SOC2:, ISO27001:, ISO27018:, ISO42001:, and 800-53: prefixes. "
+        "Each control_mappings entry must include csf_2, soc2_cc, iso27001, and nist_800_53. "
+        "Add iso27018 when cloud PII / SaaS processor scope applies; add iso42001 when AI/ML scope applies. "
         "Output JSON only — no markdown fences or commentary.\n\n"
         f"{_UNTRUSTED_DATA_INSTRUCTION}"
     )

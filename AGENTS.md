@@ -1,5 +1,7 @@
 # Personal GRC Agent (PGA) — Agent Navigation Guide
 
+> **Human operators:** start with the [README](README.md) and [Getting Started guide](docs/getting-started.md). This file is the navigation guide for AI assistants working inside the repo.
+
 You are operating inside **Personal GRC Agent (PGA)**, a local-first, draft-by-default GRC copilot. The Python CLI is **`spa`**; the product name is PGA. Read this file first, then `agent/charter.md` and `agent/autonomy-policy.yaml` for persona and risk gates.
 
 **Canonical path logic lives in `spa/paths.py`.** When in doubt, match what that module resolves — not informal docs that may lag the code.
@@ -13,7 +15,7 @@ At the start of every session:
 1. Read `agent/charter.md` — persona, draft surfaces, skill expectations.
 2. Read `agent/autonomy-policy.yaml` — classify every action A0–A5 before executing.
 3. Activate the venv when running governed commands: `source .venv/bin/activate`.
-4. Assume **MVP mode**: ticket and GRC connectors are file-only stubs (`TICKET_PROVIDER=none`). No live vendor writes.
+4. Assume **default mode**: ticket and GRC connectors are file-only (`TICKET_PROVIDER=none`). No live vendor writes unless explicitly configured and CPO-approved.
 
 ---
 
@@ -246,7 +248,7 @@ All skills: `spa run-skill <name> --input <path> [--output-dir <dir>]`
 | `meeting-synth` | Meeting notes / transcript | decisions, risks, action_items, proposed_tickets JSON | `workspace/.data/drafts/meeting-synth/` |
 | `ticket-draft` | Issue description + control hints | `ticket-proposal-*.json` | `workspace/proposals/` (or `--output-dir`) |
 | `policy-redline` | Change request (`Policy: <slug>` optional) | redline `.md`, draft PR body | `workspace/proposals/` |
-| `csf-crosswalk` | Policy excerpt / vendor artifact | control_mappings, gaps | skill JSON artifact only |
+| `csf-crosswalk` | Policy excerpt / vendor artifact | control_mappings (CSF, SOC2, ISO27001, ISO27018, ISO42001, 800-53), gaps | skill JSON artifact only |
 | `daily-brief` | Optional context note | `daily-brief-*.md` | `workspace/proposals/` |
 | `evidence-pack` | `Control: …` + `Period: …` (+ optional `Provider: aws`) | evidence index (+ findings JSON) | use `--output-dir .` for `brain/evidence/` |
 | `risk-analyst` | Product/vendor + findings/gaps + optional architecture | risk proposal, assessment report, STRIDE threat model, implementation plan | `workspace/proposals/risks/` |
@@ -265,10 +267,13 @@ Emit tags in outputs and tickets using this pattern:
 ```
 CSF:<function>.<category>     e.g. CSF:PR.IP-12
 SOC2:<CC-id>                  e.g. SOC2:CC6.1
+ISO27001:<Annex-A-control>    e.g. ISO27001:A.5.15
+ISO27018:<PII-control>        e.g. ISO27018:A.9.2.1
+ISO42001:<Annex-A-control>    e.g. ISO42001:A.6.2.6
 800-53:<control>              e.g. 800-53:AC-2
 ```
 
-Crosswalk references: `brain/01-frameworks/soc2-csf-crosswalk.md`, `brain/01-frameworks/csf-2.0-core.md`.
+Crosswalk references: `brain/01-frameworks/soc2-csf-crosswalk.md`, `brain/01-frameworks/csf-2.0-core.md`, `brain/01-frameworks/csf-iso27001-crosswalk.md`, `brain/01-frameworks/soc2-iso27001-crosswalk.md`, `brain/01-frameworks/soc2-iso27018-crosswalk.md`, `brain/01-frameworks/csf-iso42001-crosswalk.md`.
 
 ---
 
@@ -318,7 +323,8 @@ spa ingest inbox/2026-06-07-steering-committee.md
 spa run-skill meeting-synth --input evals/fixtures/meeting_sample.md
 spa run-skill ticket-draft --input evals/fixtures/ticket_input.md
 spa run-skill policy-redline --input evals/fixtures/policy_change.md
-spa run-skill csf-crosswalk --input evals/fixtures/crosswalk_input.md
+spa run-skill csf-crosswalk --input evals/crosswalk/fixtures/cloud-saas-vendor.md
+spa run-skill csf-crosswalk --input evals/crosswalk/fixtures/ai-governance-vendor.md
 spa run-skill evidence-pack --input evals/fixtures/evidence_pack_input.md --output-dir .
 spa run-skill risk-analyst --input evals/fixtures/risk_analyst_input.md
 spa run-skill repo-security-review --input evals/fixtures/repo_security_review_input.md
@@ -363,7 +369,7 @@ Redaction runs at write time per `governance/redaction-rules.yaml` — never per
 
 - Prefer `spa ingest` and `spa run-skill` for governed artifacts.
 - Keep tickets `status: ai_proposed`, `assignee: unassigned` in MVP.
-- Tag outputs with CSF / SOC2 / 800-53 control references.
+- Tag outputs with CSF / SOC2 / ISO27001 / ISO27018 / ISO42001 / 800-53 control references.
 - Suggest owners; never auto-assign without approved CPO.
 - Use `evals/fixtures/` as input examples when unsure of format.
 
@@ -391,9 +397,11 @@ spa audit verify [--from DATE] [--to DATE] # hash chain check
 spa mcp serve                              # governed MCP server (stdio)
 spa evidence export --output <file.tar.gz> # auditor bundle
 
-make seed      # re-index brain → Qdrant
-make selftest  # health checks
-make eval      # golden skill evals
+make seed           # re-index brain → Qdrant
+make selftest       # health checks
+make eval           # golden skill evals (includes crosswalk scenarios)
+make eval-crosswalk # csf-crosswalk scenario evals only
+pytest tests/test_crosswalk_eval.py -v
 ```
 
 ---
@@ -402,6 +410,8 @@ make eval      # golden skill evals
 
 | File | Purpose |
 |------|---------|
+| `docs/getting-started.md` | Human onboarding — install, first workflow, MCP setup |
+| `README.md` | Product overview and use cases |
 | `agent/charter.md` | Persona and principles |
 | `agent/autonomy-policy.yaml` | Risk gates and tool → class mappings |
 | `agent/runtime.config.yaml` | Runtime swap (Hermes default) |

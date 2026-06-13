@@ -6,7 +6,7 @@
 
 - [ ] CSF / SOC2 / 800-53 tags reviewed
 - [ ] No authoritative publish without approved CPO (A4)
-- [ ] Draft-only surfaces respected in MVP
+- [ ] Draft-only surfaces respected (no live vendor writes without CPO)
 
 ## Provenance
 

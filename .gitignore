@@ -1,6 +1,13 @@
 # Secrets and local state
 .env
+.env.*
+!.env.example
 secrets/
+*.pem
+*.p12
+service-account*.json
+credentials*.json
+.openclaw/
 # CPO HMAC signing key (auto-generated, mode 0600) — never commit
 governance/.cpo-signing-key
 *.cpo-signing-key
