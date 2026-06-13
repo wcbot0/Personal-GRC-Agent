@@ -41,24 +41,22 @@ All notable changes to Personal GRC Agent (PGA) are documented here.
 - Hermes filesystem MCP demoted to `brain/` read-only only (inbox/drafts no longer mounted) — governed MCP is the preferred write path
 - LLM env supports both `LLM_BASE_URL` and existing `LLM_API_BASE` alias
 
-### Review fixes (Phase 2 Milestone 2.0)
+### Review fixes (pre-merge)
 
-- Removed writable `pga-filesystem` Hermes mount; governed MCP (`pga-governed`) is the only registered server
-- Pinned `SPA_NO_LLM=1` in CI workflow jobs running pytest, eval, and redteam
-- `LLM_PROVIDER=ollama` enables LLM without `LLM_API_KEY` (still disabled by `SPA_NO_LLM=1`)
-- Documented `_execute_human_gate` ToolGuard bypass rationale in `spa/mcp_server.py`
+- **Removed `pga-filesystem` mount** — `@modelcontextprotocol/server-filesystem` exposes write tools; setup script now registers `pga-governed` only and idempotently drops legacy `pga-filesystem` from `~/.hermes/config.yaml`
+- **CI deterministic mode** — `SPA_NO_LLM=1` pinned in skill-tests and redteam GitHub Actions jobs
+- **Ollama without API key** — `llm_enabled()` returns true for `LLM_PROVIDER=ollama` with no `LLM_API_KEY`; OpenAI/Anthropic still require a key
+- **Human-gate comment** — documented ToolGuard bypass in `_execute_human_gate` (CPO-to-approve-a-CPO circularity; `confirm=true` is client-asserted)
 
 ## [Unreleased] — Phase 2 Five-Runtime Coverage
 
 ### Milestone 2.0 — Phase 1 review fixes
 
-- Removed writable Hermes `pga-filesystem` mount; governed MCP only
-- Pinned `SPA_NO_LLM=1` in CI; `LLM_PROVIDER=ollama` works without API key
-- Human-gate enforcement exception documented in `spa/mcp_server.py`
+- The four review fixes above; merged to main independently via PR #16 and reconciled into this branch
 
 ### Milestone 2.1 — SKILL.md spec migration
 
-- Renamed `skills/<name>/skill.md` → `SKILL.md` with YAML frontmatter (8 skills)
+- Renamed `skills/<name>/skill.md` -> `SKILL.md` with YAML frontmatter (8 skills); real git rename verified on case-insensitive filesystems
 - Updated skill engine, scaffold script, docs; added `tests/test_skill_spec.py`
 - Pinned `SPA_NO_LLM=1` in `make eval`
 

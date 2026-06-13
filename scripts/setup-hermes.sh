@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Wire this PGA repo into Hermes Agent (governed MCP only).
+# Wire this PGA repo into Hermes Agent (governed MCP).
 # Idempotent: safe to re-run; updates paths if the repo was moved.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GOV_MCP_NAME="pga-governed"
+LEGACY_FS_MCP_NAME="pga-filesystem"
 VENV_PYTHON="$ROOT/.venv/bin/python"
 SPA_BIN="$ROOT/.venv/bin/spa"
 
@@ -30,7 +31,7 @@ fi
 log "Hermes: $(hermes --version 2>/dev/null | head -1 || echo installed)"
 log "Repo:  $ROOT"
 
-"$VENV_PYTHON" - <<'PY' "$ROOT" "$GOV_MCP_NAME" "$SPA_BIN"
+"$VENV_PYTHON" - <<'PY' "$ROOT" "$GOV_MCP_NAME" "$LEGACY_FS_MCP_NAME" "$SPA_BIN"
 import sys
 from pathlib import Path
 
@@ -38,7 +39,8 @@ import yaml
 
 root = Path(sys.argv[1])
 gov_mcp_name = sys.argv[2]
-spa_bin = sys.argv[3]
+legacy_fs_mcp_name = sys.argv[3]
+spa_bin = sys.argv[4]
 config_path = Path.home() / ".hermes" / "config.yaml"
 
 if not config_path.exists():
@@ -49,11 +51,11 @@ if not config_path.exists():
 cfg = yaml.safe_load(config_path.read_text()) or {}
 servers = cfg.setdefault("mcp_servers", {})
 
-# Remove legacy writable brain mount (reference MCP filesystem server has no read-only mode).
-for legacy in ("pga-filesystem", "filesystem"):
-    if legacy in servers:
-        del servers[legacy]
-        print(f"[setup-hermes] Removed legacy MCP server '{legacy}' from {config_path}")
+# Legacy filesystem mount exposed write_file/edit_file/move_file — not read-only.
+# Remove on every run so Hermes sessions cannot bypass ToolGuard via brain/ writes.
+if legacy_fs_mcp_name in servers:
+    del servers[legacy_fs_mcp_name]
+    print(f"[setup-hermes] Removed legacy MCP server '{legacy_fs_mcp_name}'")
 
 # Governed PGA tools — ingest, skills, proposals, audit (ToolGuard + verifiers)
 servers[gov_mcp_name] = {
@@ -82,10 +84,10 @@ Setup complete. Start a session from this repo:
 
 Hermes auto-loads AGENTS.md from the repo root (persona + draft rules).
 
-**Use the governed MCP server (\`$GOV_MCP_NAME\`)** for ingest, skills, proposals, and audit —
+**Use the governed MCP server (\`$GOV_MCP_NAME\`)** for ingest, skills, proposals, audit, and memory search —
 it routes through ToolGuard and the hash-chained audit trail.
 
-Browse \`brain/\` in your editor; retrieval is available via \`pga_memory_search\` on the governed server.
+Browse \`brain/\` in your editor or via \`pga_memory_search\`; do not mount a raw filesystem MCP (no read-only mode).
 
 For CLI batch work:
 
