@@ -24,7 +24,7 @@ def test_repo_structure() -> None:
         "agent/charter.md",
         "memory/schemas/cpo.schema.json",
         "governance/redaction-rules.yaml",
-        "skills/meeting-synth/skill.md",
+        "skills/meeting-synth/SKILL.md",
         "connectors/interfaces/ticket.py",
     ]
     for rel in required:

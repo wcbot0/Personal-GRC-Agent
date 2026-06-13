@@ -408,7 +408,7 @@ make eval      # golden skill evals
 | `spa/paths.py` | **Canonical path resolution** |
 | `governance/redaction-rules.yaml` | Secret/PII patterns |
 | `memory/schemas/*.schema.json` | CPO, audit event, memory object shapes |
-| `skills/*/skill.md` | Per-skill contract |
+| `skills/*/SKILL.md` | Per-skill contract |
 | `evals/fixtures/` | Sample inputs for every skill |
 
 ---

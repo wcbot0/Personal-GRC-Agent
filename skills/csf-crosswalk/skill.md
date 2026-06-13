@@ -1,4 +1,7 @@
-# csf-crosswalk
+---
+name: csf-crosswalk
+description: Map vendor artifacts or policy excerpts to CSF, SOC2, and 800-53 controls with gap analysis. Use when processing vendor questionnaires or control crosswalk requests.
+---
 
 **Risk class:** A1 (local draft)
 
