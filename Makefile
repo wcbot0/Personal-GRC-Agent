@@ -1,4 +1,4 @@
-.PHONY: help bootstrap selftest ingest proposals show approve reject eval redteam lint policy-lint secret-scan up down seed clean _ensure_python venv
+.PHONY: help bootstrap selftest ingest proposals show approve reject eval eval-crosswalk redteam lint policy-lint secret-scan up down seed clean _ensure_python venv
 
 SHELL := /bin/bash
 ROOT := $(CURDIR)
@@ -12,15 +12,16 @@ PIP := $(VENV)/bin/pip
 endif
 
 help:
-	@echo "Security Personal Assistant — common targets"
+	@echo "Personal GRC Agent (PGA) — common targets"
 	@echo "  make bootstrap     — idempotent setup (venv, deps, docker, seed, selftest, optional Hermes)"
-	@echo "  make selftest      — run stub + integration self-tests"
+	@echo "  make selftest      — run integration health checks"
 	@echo "  make ingest FILE=   — ingest a file into memory"
 	@echo "  make proposals     — list pending change proposals"
 	@echo "  make show ID=      — show a change proposal"
 	@echo "  make approve ID=   — approve a change proposal"
 	@echo "  make reject ID= REASON= — reject a change proposal"
 	@echo "  make eval          — run golden-fixture skill evals"
+	@echo "  make eval-crosswalk — run csf-crosswalk scenario evals only"
 	@echo "  make redteam       — run prompt-injection corpus"
 	@echo "  make lint          — run all linters"
 	@echo "  make policy-lint   — validate autonomy-policy + schemas"
@@ -66,6 +67,9 @@ reject: _ensure_python
 
 eval: _ensure_python
 	SPA_NO_LLM=1 SPA_DATA_DIR="$${SPA_DATA_DIR:-/tmp/spa_d}" SPA_AUDIT_DIR="$${SPA_AUDIT_DIR:-/tmp/spa_a}" "$(PYTHON)" evals/run_evals.py
+
+eval-crosswalk: _ensure_python
+	SPA_NO_LLM=1 SPA_DATA_DIR="$${SPA_DATA_DIR:-/tmp/spa_d}" SPA_AUDIT_DIR="$${SPA_AUDIT_DIR:-/tmp/spa_a}" "$(PYTHON)" evals/crosswalk_eval.py
 
 redteam: _ensure_python
 	./scripts/redteam.sh

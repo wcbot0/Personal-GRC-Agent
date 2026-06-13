@@ -2,6 +2,7 @@
 """Golden-fixture eval harness for SPA skills."""
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -12,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from evals.crosswalk_eval import run_all_crosswalk_evals  # noqa: E402
 from spa.skills.runner import run_skill  # noqa: E402
 from spa.skills.verifiers import run_verifiers  # noqa: E402
 
@@ -19,7 +21,6 @@ SKILLS = {
     "meeting-synth": "evals/fixtures/meeting_sample.md",
     "ticket-draft": "evals/fixtures/ticket_input.md",
     "policy-redline": "evals/fixtures/policy_change.md",
-    "csf-crosswalk": "evals/fixtures/crosswalk_input.md",
     "daily-brief": "evals/fixtures/daily_brief_context.md",
     "evidence-pack": "evals/fixtures/evidence_pack_input.md",
     "risk-analyst": "evals/fixtures/risk_analyst_input.md",
@@ -60,10 +61,6 @@ def score_output(skill: str, output: dict, verifications: list[dict]) -> list[st
         needle = golden.get("redline_file_contains", "")
         if needle and needle not in output.get("redline_file", ""):
             errors.append(f"{skill}: redline_file path unexpected")
-
-    if skill == "csf-crosswalk":
-        if len(output.get("control_mappings", [])) < golden.get("min_mappings", 1):
-            errors.append(f"{skill}: expected control mappings")
 
     if skill == "daily-brief":
         brief = output.get("brief_markdown", "")
@@ -187,12 +184,51 @@ def _write_m3_report(records: list[dict]) -> Path:
     return path
 
 
-def main() -> int:
+def _run_crosswalk_evals(all_errors: list[str], m3_records: list[dict]) -> None:
+    def _on_scenario(scenario_id: str, passed: bool, errors: list[str]) -> None:
+        label = f"eval csf-crosswalk/{scenario_id}"
+        if passed:
+            print(f"{label}: PASS")
+        else:
+            print(f"{label}: FAIL")
+            for error in errors:
+                print(f"  - {error}")
+
+    crosswalk_errors, crosswalk_records = run_all_crosswalk_evals(on_scenario=_on_scenario)
+    all_errors.extend(crosswalk_errors)
+    for record in crosswalk_records:
+        m3_records.append(
+            {
+                "skill": f"csf-crosswalk/{record['scenario']}",
+                "first_pass": record["first_pass"],
+                "verifiers": record["verifiers"],
+            }
+        )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Run SPA golden-fixture skill evals")
+    parser.add_argument(
+        "--skill",
+        help="Run evals for a single skill (csf-crosswalk runs all crosswalk scenarios)",
+    )
+    args = parser.parse_args(argv)
+
     _ensure_isolated_state_paths()
     all_errors: list[str] = []
     m3_records: list[dict] = []
 
-    for skill, fixture in SKILLS.items():
+    skills = SKILLS.items()
+    if args.skill:
+        if args.skill == "csf-crosswalk":
+            skills = []
+        elif args.skill not in SKILLS:
+            print(f"Unknown skill: {args.skill}", file=sys.stderr)
+            return 2
+        else:
+            skills = [(args.skill, SKILLS[args.skill])]
+
+    for skill, fixture in skills:
         fixture_path = ROOT / fixture
         _, verifications, first_pass = _run_verifiers_first_pass(skill, fixture_path)
         m3_records.append(
@@ -213,6 +249,9 @@ def main() -> int:
                     print(f"  - {e}")
             else:
                 print(f"eval {skill}: PASS")
+
+    if not args.skill or args.skill == "csf-crosswalk":
+        _run_crosswalk_evals(all_errors, m3_records)
 
     m3_path = _write_m3_report(m3_records)
     passed = sum(1 for r in m3_records if r["first_pass"])

@@ -1,4 +1,4 @@
-# Test fixture — secret should be redacted at write
+# Synthetic test fixture — NOT a real secret (redaction-at-write eval)
 
 api_key=SUPER_SECRET_TOKEN_SHOULD_REDACT
 

@@ -2,6 +2,10 @@
 
 # Claude Code runtime — Personal GRC Agent
 
+Use Claude Code with native skill discovery and governed PGA artifact writes.
+
+**Prerequisites:** [Getting started](../getting-started.md) — bootstrap complete, `spa` on your PATH.
+
 ## Setup
 
 ```bash
@@ -9,7 +13,7 @@ source .venv/bin/activate
 spa init --runtime claude
 ```
 
-Generates:
+This generates:
 
 | File | Purpose |
 |------|---------|
@@ -18,21 +22,38 @@ Generates:
 
 Skills under `skills/` are **auto-discovered** via `SKILL.md` frontmatter (AgentSkills spec).
 
-## Skills
+Restart Claude Code after init so `.mcp.json` is picked up.
 
-Claude Code discovers `skills/*/SKILL.md` natively. For verifier-gated outputs (tickets, redlines, evidence), use **`pga-governed`** MCP or `spa run-skill` — not direct artifact writes.
+## Using PGA in Claude Code
+
+Claude Code discovers `skills/*/SKILL.md` natively for exploration and drafting guidance. For **verifier-gated outputs** — tickets, redlines, evidence packs, crosswalks — use **`pga-governed`** MCP or `spa run-skill` in the terminal. Direct artifact writes bypass verifiers and the audit chain.
+
+Example workflow:
+
+```bash
+spa ingest inbox/my-meeting-notes.md
+spa run-skill policy-redline --input change-request.md
+spa proposals list
+```
 
 ## Governance
 
-MCP tools enforce A0–A5 gates. Human-gate tools (`pga_proposals_approve`, `pga_proposals_reject`) require `confirm=true`.
+MCP tools enforce A0–A5 gates. Human-gate tools (`pga_proposals_approve`, `pga_proposals_reject`) require `confirm: true`.
 
-## E2E
+## Verify setup
 
 ```bash
-./scripts/e2e/run-claude.sh
+spa init --runtime claude --check
+make selftest
+spa audit verify
 ```
 
 ## Limitations
 
 - Restart Claude Code after editing `.mcp.json`.
 - Managed files include `# pga-init-managed` — use `spa init --runtime claude --force` to overwrite local edits.
+
+## See also
+
+- [Getting started](../getting-started.md)
+- [AGENTS.md](../../AGENTS.md)

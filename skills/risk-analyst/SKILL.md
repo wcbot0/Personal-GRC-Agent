@@ -3,7 +3,7 @@ name: risk-analyst
 description: Produce FAIR-aligned product/tool risk assessments with STRIDE threat models. Use when reviewing vendor or product risk with findings and gaps.
 ---
 
-**Risk class:** A2 (external draft — file-only in MVP)
+**Risk class:** A2 (external draft — file-only when `TICKET_PROVIDER=none`)
 
 Principal-analyst-grade commercial product/tool risk assessment. Researches product context from input, produces an implementation-ready threat model, FAIR-aligned semi-quantitative scoring (1–5), and NIST SP 800-30 risk scenarios from findings and gaps. Formal risk acceptance requires human approval (A5 blocked).
 
