@@ -61,6 +61,25 @@ def verify_self_critique(output: dict[str, Any], rubric_path: Path) -> dict[str,
     }
 
 
+def verify_questionnaire_citations(output: dict[str, Any]) -> dict[str, Any]:
+    answers = output.get("answers") or []
+    violations: list[str] = []
+    for item in answers:
+        qid = item.get("question_id", "?")
+        needs_human = bool(item.get("needs_human"))
+        citations = item.get("citations") or []
+        if needs_human and citations:
+            violations.append(f"{qid}: needs_human=true but citations present")
+        if not needs_human and not citations:
+            violations.append(f"{qid}: missing citation for answered question")
+    passed = len(violations) == 0
+    return {
+        "name": "questionnaire_citations",
+        "passed": passed,
+        "detail": "citation rules satisfied" if passed else "; ".join(violations),
+    }
+
+
 def run_verifiers(
     skill_name: str,
     output: dict[str, Any],
@@ -78,6 +97,8 @@ def run_verifiers(
     results.append(verify_control_mapping(output))
     results.append(verify_secrets_scan(serialized))
     results.append(verify_self_critique(output, rubric_path))
+    if skill_name == "questionnaire":
+        results.append(verify_questionnaire_citations(output))
 
     if all(r["passed"] for r in results):
         return output, results
@@ -91,6 +112,8 @@ def run_verifiers(
         results2.append(verify_control_mapping(output2))
         results2.append(verify_secrets_scan(serialized2))
         results2.append(verify_self_critique(output2, rubric_path))
+        if skill_name == "questionnaire":
+            results2.append(verify_questionnaire_citations(output2))
         if all(r["passed"] for r in results2):
             return output2, results2
         return output2, results2

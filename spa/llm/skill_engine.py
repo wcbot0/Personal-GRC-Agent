@@ -104,6 +104,14 @@ def _invalid_output(skill_name: str, error: str) -> dict[str, Any]:
             "control_tags": [],
             "_parse_error": error,
         }
+    if skill_name == "questionnaire":
+        return {
+            "skill": "questionnaire",
+            "questionnaire_type": "unknown",
+            "answers": [],
+            "control_tags": [],
+            "_parse_error": error,
+        }
     return {
         "skill": skill_name,
         "decisions": [],
