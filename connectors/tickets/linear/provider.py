@@ -8,12 +8,14 @@ from connectors.tickets.linear.client import LinearGraphQLClient
 from connectors.tickets.linear.config import LinearConfig, LinearConfigError
 from spa.tools.guard import ToolBlockedError
 from spa.tools.write import guarded_write
+from spa.workflows.ticket_publish import AI_PROPOSED_LABEL
 
 if TYPE_CHECKING:
     from spa.tools.guard import ToolGuard
 
 _CREATE_LIVE_TOOL = "create_ticket_live"
 _ASSIGN_TOOL = "assign_human"
+_PROVENANCE_TOOL = "add_provenance_comment"
 
 
 class LinearTicketProvider(TicketConnector):
@@ -144,14 +146,46 @@ class LinearTicketProvider(TicketConnector):
 
         title = ticket.get("title") or ticket.get("id") or "AI-proposed ticket"
         description = ticket.get("description") or ticket.get("rationale") or ""
+        provenance = ticket.get("provenance") or {}
+        label_name = provenance.get("label") or AI_PROPOSED_LABEL
+
+        def _format_provenance_comment() -> str:
+            lines = ["**PGA provenance**", ""]
+            if provenance.get("skill"):
+                lines.append(f"- skill: `{provenance['skill']}`")
+            if provenance.get("input_sha256"):
+                lines.append(f"- input_sha256: `{provenance['input_sha256']}`")
+            if provenance.get("run_id"):
+                lines.append(f"- run_id: `{provenance['run_id']}`")
+            if cpo_id:
+                lines.append(f"- cpo_id: `{cpo_id}`")
+            return "\n".join(lines)
 
         def _write() -> dict[str, Any]:
-            issue = self._get_client().create_issue(
+            client = self._get_client()
+            issue = client.create_issue(
                 cfg.team_id,
                 title,
                 description,
                 project_id=cfg.project_id,
             )
+            issue_id = issue.get("id")
+            if issue_id:
+                label = client.get_or_create_label(cfg.team_id, label_name)
+                client.add_label_to_issue(issue_id, label["id"])
+                comment_body = _format_provenance_comment()
+                guarded_write(
+                    self.guard,
+                    _PROVENANCE_TOOL,
+                    lambda: client.create_comment(issue_id, comment_body),
+                    cpo_id=cpo_id,
+                    preview=f"issue={issue.get('identifier') or issue_id}",
+                    audit_outputs=lambda comment: {
+                        "issue_id": issue_id,
+                        "comment_id": comment.get("id"),
+                        "label": label_name,
+                    },
+                )
             result = {
                 "provider": "linear",
                 "path": issue.get("url"),
@@ -163,7 +197,9 @@ class LinearTicketProvider(TicketConnector):
                     "status": "created",
                     "assignee": (issue.get("assignee") or {}).get("name") or "unassigned",
                     "team_id": cfg.team_id,
+                    "label": label_name,
                 },
+                "provenance": provenance,
             }
             if cfg.project_id:
                 result["ticket"]["project_id"] = cfg.project_id
