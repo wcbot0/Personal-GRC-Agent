@@ -1,0 +1,8 @@
+# NIST AI Risk Management Framework (AI RMF 1.0)
+# Source: NIST AI RMF 1.0 — https://www.nist.gov/itl/ai-risk-management-framework
+# https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf
+
+name: nist-ai-rmf
+version: "1.0"
+source: "NIST AI RMF 1.0 (NIST.AI.100-1)"
+license_note: "Public-domain NIST summary for internal GRC reference."

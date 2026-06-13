@@ -172,6 +172,38 @@ def proposals_reject(cpo_id: str, reason: str, rejected_by: str) -> None:
     click.echo(f"Rejected {cpo['id']}: {reason}")
 
 
+@main.group("brain")
+def brain_group() -> None:
+    """Brain framework pack commands."""
+
+
+@brain_group.command("list")
+@click.option("--check", is_flag=True, help="Report installed vs available pack versions")
+def brain_list(check: bool) -> None:
+    """List available or installed brain packs."""
+    from spa.brain_packs import check_packs, list_available_packs, list_installed_packs
+
+    if check:
+        click.echo(json.dumps(check_packs(), indent=2))
+        return
+    click.echo(json.dumps({"available": list_available_packs(), "installed": list_installed_packs()}, indent=2))
+
+
+@brain_group.command("add")
+@click.argument("pack_name")
+@click.option("--no-reindex", is_flag=True, help="Skip semantic memory re-index after install")
+def brain_add(pack_name: str, no_reindex: bool) -> None:
+    """Install a brain pack into brain/04-standards/<pack>/."""
+    from spa.brain_packs import BrainPackError, install_pack
+
+    try:
+        result = install_pack(pack_name, reindex=not no_reindex)
+    except BrainPackError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+    click.echo(json.dumps(result, indent=2))
+
+
 @main.group("cloud")
 def cloud_group() -> None:
     """Cloud findings commands."""
