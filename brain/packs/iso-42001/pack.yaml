@@ -1,0 +1,8 @@
+# ISO/IEC 42001 — AI management system (concise overview)
+# Source: ISO/IEC 42001:2023 — Information technology — Artificial intelligence — Management system
+# https://www.iso.org/standard/81230.html
+
+name: iso-42001
+version: "2023"
+source: "ISO/IEC 42001:2023"
+license_note: "Summarized for internal GRC reference; consult licensed ISO text for authoritative wording."

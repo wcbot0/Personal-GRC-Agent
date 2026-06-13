@@ -87,6 +87,8 @@ tool_mappings:
   create_cpo: A1
   create_draft_pr: A2
   create_ticket_draft: A2
+  create_ai_proposed_ticket: A2
+  add_provenance_comment: A2
   create_grc_draft: A2
   create_risk_proposal: A2
   create_risk_report: A1

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -228,6 +229,8 @@ class ApprovalQueue:
 
         if action_type == "assign_human":
             result = self._apply_assign_human(change, cpo_id=cpo_id)
+        elif action_type == "create_ticket_live":
+            result = self._apply_create_ticket_live(change, cpo_id=cpo_id)
         elif action_type == "skill_verifier_escalation":
             result = {"status": "escalation_acknowledged", **change}
             self.audit.emit(
@@ -294,6 +297,42 @@ class ApprovalQueue:
             path=change.get("path"),
             status=change.get("status", "assigned"),
         )
+
+    def _apply_create_ticket_live(self, change: dict[str, Any], *, cpo_id: str) -> dict[str, Any]:
+        from connectors.registry import get_ticket_provider
+        from spa.tools.guard import ToolGuard
+
+        ticket = change.get("ticket")
+        if not ticket:
+            raise ApprovalQueueError("create_ticket_live CPO missing ticket in proposed_change")
+
+        guard = ToolGuard(queue=self, audit=self.audit)
+        if not guard.policy.live_writes_enabled("ticket"):
+            result = {
+                "status": "deferred",
+                "reason": "connectors.ticket.live_write_enabled is false",
+                "ticket_id": ticket.get("id"),
+                "path": change.get("path"),
+            }
+            guard.audit.emit(
+                "ticket_create_live",
+                task_class="connector",
+                risk_class="A4",
+                tools_called=["create_ticket_live"],
+                approval_required=False,
+                cpo_id=cpo_id,
+                outputs={**result, "provider": os.getenv("TICKET_PROVIDER", "none")},
+            )
+            return result
+
+        provenance = change.get("provenance") or {}
+        ticket_payload = {**ticket, "provenance": provenance, "cpo_id": cpo_id}
+        provider = get_ticket_provider(guard=guard, require_live_writes=True)
+        if not hasattr(provider, "create_live"):
+            raise ApprovalQueueError(
+                f"Ticket provider '{getattr(provider, 'provider', 'unknown')}' does not support create_live"
+            )
+        return provider.create_live(ticket_payload, cpo_id=cpo_id)
 
     def approve_and_execute(
         self,

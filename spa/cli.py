@@ -172,6 +172,95 @@ def proposals_reject(cpo_id: str, reason: str, rejected_by: str) -> None:
     click.echo(f"Rejected {cpo['id']}: {reason}")
 
 
+@main.group("brain")
+def brain_group() -> None:
+    """Brain framework pack commands."""
+
+
+@brain_group.command("list")
+@click.option("--check", is_flag=True, help="Report installed vs available pack versions")
+def brain_list(check: bool) -> None:
+    """List available or installed brain packs."""
+    from spa.brain_packs import check_packs, list_available_packs, list_installed_packs
+
+    if check:
+        click.echo(json.dumps(check_packs(), indent=2))
+        return
+    click.echo(json.dumps({"available": list_available_packs(), "installed": list_installed_packs()}, indent=2))
+
+
+@brain_group.command("add")
+@click.argument("pack_name")
+@click.option("--no-reindex", is_flag=True, help="Skip semantic memory re-index after install")
+def brain_add(pack_name: str, no_reindex: bool) -> None:
+    """Install a brain pack into brain/04-standards/<pack>/."""
+    from spa.brain_packs import BrainPackError, install_pack
+
+    try:
+        result = install_pack(pack_name, reindex=not no_reindex)
+    except BrainPackError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+    click.echo(json.dumps(result, indent=2))
+
+
+@main.group("cloud")
+def cloud_group() -> None:
+    """Cloud findings commands."""
+
+
+@cloud_group.command("scan")
+@click.option("--provider", default=None, help="Cloud provider (aws|gcp); default: CLOUD_PROVIDER env")
+@click.option("--period", default=None, help="Evidence period label (e.g. 2026-Q2)")
+@click.option("--output-dir", default=None, type=click.Path(file_okay=False), help="Findings output directory")
+def cloud_scan(provider: str | None, period: str | None, output_dir: str | None) -> None:
+    """Run read-only cloud checks → findings JSON, ticket proposals, evidence indexes."""
+    from spa.audit.logger import AuditLogger
+    from spa.cloud_scan import run_cloud_scan
+    from spa.tools.guard import ToolGuard
+
+    audit = AuditLogger()
+    guard = ToolGuard(audit=audit)
+    out = Path(output_dir) if output_dir else None
+    result = run_cloud_scan(provider=provider, period=period, guard=guard, output_dir=out)
+    click.echo(json.dumps(result, indent=2))
+
+
+@main.group("tickets")
+def tickets_group() -> None:
+    """Ticket proposal commands."""
+
+
+@tickets_group.command("publish")
+@click.option("--path", "proposal_path", default=None, type=click.Path(exists=True, dir_okay=False))
+@click.option("--id", "ticket_id", default=None, help="Ticket proposal id (e.g. AI-PROPOSED-001)")
+@click.option("--skill", default="ticket-draft", help="Originating skill for provenance")
+def tickets_publish(proposal_path: str | None, ticket_id: str | None, skill: str) -> None:
+    """Propose publishing an AI-Proposed ticket draft to an external system (CPO-gated)."""
+    from spa.audit.logger import AuditLogger
+    from spa.tools.guard import ToolGuard
+    from spa.workflows.ticket_publish import propose_ai_proposed_ticket_cpo
+
+    if not proposal_path and not ticket_id:
+        click.echo("Provide --path or --id.", err=True)
+        sys.exit(1)
+
+    audit = AuditLogger()
+    guard = ToolGuard(audit=audit)
+    try:
+        cpo_id = propose_ai_proposed_ticket_cpo(
+            guard=guard,
+            queue=guard.queue,
+            path=proposal_path,
+            ticket_id=ticket_id,
+            skill=skill,
+        )
+    except FileNotFoundError as exc:
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+    click.echo(json.dumps({"cpo_id": cpo_id, "status": "pending"}, indent=2))
+
+
 @main.group("mcp")
 def mcp_group() -> None:
     """MCP server commands."""
