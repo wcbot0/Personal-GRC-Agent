@@ -4,7 +4,6 @@ secrets/
 # Live MCP configs may carry local credentials; keep disabled templates tracked.
 mcp/*.json
 mcp/**/*.json
-!mcp/filesystem.json
 !mcp/pga-governed.json
 workspace/.data/
 governance/audit-logs/

@@ -127,7 +127,7 @@ security-personal-assistant/
   skills/       _template/ daily-brief/ meeting-synth/ ticket-draft/
                 policy-redline/ csf-crosswalk/ evidence-pack/
   memory/       schemas/ (cpo.schema.json, memory-object.schema.json, audit-event.schema.json)
-  mcp/          filesystem.json  github.json.disabled  linear.json.disabled
+  mcp/          pga-governed.json  github.json.disabled  linear.json.disabled
                 slack.json.disabled  aws.json.disabled  grc.json.disabled
   connectors/   interfaces/ (ticket.py, grc.py, notes.py, comms.py)
                 tickets/none/  grc/none/   (real providers added post-MVP)
