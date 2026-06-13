@@ -29,7 +29,19 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     audit_dir = get_audit_logs_dir()
     audit_logs = list(audit_dir.glob("audit-*.jsonl")) if audit_dir.exists() else []
 
+    from spa.governance.reliability_metrics import compute_all_metrics
+
+    metrics_report = compute_all_metrics(audit_dir=audit_dir, persist=False)
+    m1 = metrics_report["metrics"]["M1"]
+    m2 = metrics_report["metrics"]["M2"]
+    m3 = metrics_report["metrics"]["M3"]
+
     brief_md = f"""# Daily Security Brief — {datetime.now(timezone.utc).date().isoformat()}
+
+## Reliability metrics
+- **M1 first-pass acceptance:** {m1.get('rate_pct', 'n/a')} ({m1.get('accepted', 0)}/{m1.get('total', 0)} skill runs)
+- **M2 mean time to detect:** {m2.get('mean_hours', 'n/a')} hours ({m2.get('samples', 0)} samples)
+- **M3 verifier pass rate:** {m3.get('rate_pct', 'n/a')} ({m3.get('first_pass_count', '?')}/{m3.get('total_skills', '?')} skills)
 
 ## Pending approvals ({len(pending)})
 """
@@ -62,5 +74,6 @@ def run(content: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
         "brief_markdown": brief_md,
         "pending_approvals": len(pending),
         "open_proposals": len(proposals),
+        "reliability_metrics": metrics_report["metrics"],
         "control_tags": ["CSF:ID.AM", "SOC2:CC4.1"],
     }
