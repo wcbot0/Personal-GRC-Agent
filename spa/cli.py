@@ -37,17 +37,21 @@ def audit_group() -> None:
 @click.option("--dir", "audit_dir", default=None, type=click.Path(exists=True, file_okay=False))
 @click.option("--from", "from_date", default=None, help="Start date YYYY-MM-DD")
 @click.option("--to", "to_date", default=None, help="End date YYYY-MM-DD")
-@click.option("--require-full-chain", is_flag=True, help="Fail if legacy events without hashes exist")
+@click.option(
+    "--allow-legacy",
+    is_flag=True,
+    help="Permit legacy events without hashes (weakens tamper-evidence; off by default)",
+)
 def audit_verify(
     audit_dir: str | None,
     from_date: str | None,
     to_date: str | None,
-    require_full_chain: bool,
+    allow_legacy: bool,
 ) -> None:
     """Verify hash chain integrity of audit JSONL logs."""
     log_dir = Path(audit_dir) if audit_dir else get_audit_logs_dir()
     start, end = parse_export_dates(from_date, to_date)
-    result = verify_chain(log_dir, start=start, end=end, require_full_chain=require_full_chain)
+    result = verify_chain(log_dir, start=start, end=end, require_full_chain=not allow_legacy)
     payload = {
         "valid": result.valid,
         "event_count": result.event_count,
@@ -118,7 +122,7 @@ def proposals_show(cpo_id: str) -> None:
 @click.option("--batch", is_flag=True, help="Batch-approve pending CPOs matching filters")
 @click.option("--type", "action_type", default=None, help="Filter by action_type (batch mode)")
 @click.option("--max-risk", default="A3", help="Max action class to approve (A3|A4)")
-@click.option("--by", "approved_by", default="human-reviewer")
+@click.option("--by", "approved_by", default="local-cli-operator@unverified")
 def proposals_approve(
     cpo_id: str | None,
     batch: bool,
@@ -161,7 +165,7 @@ def proposals_approve(
 @proposals_group.command("reject")
 @click.argument("cpo_id")
 @click.option("--reason", required=True, help="Rejection reason (required)")
-@click.option("--by", "rejected_by", default="human-reviewer")
+@click.option("--by", "rejected_by", default="local-cli-operator@unverified")
 def proposals_reject(cpo_id: str, reason: str, rejected_by: str) -> None:
     queue = ApprovalQueue()
     try:

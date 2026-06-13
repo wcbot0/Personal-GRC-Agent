@@ -1,6 +1,9 @@
 # Secrets and local state
 .env
 secrets/
+# CPO HMAC signing key (auto-generated, mode 0600) — never commit
+governance/.cpo-signing-key
+*.cpo-signing-key
 # Live MCP configs may carry local credentials; keep disabled templates tracked.
 mcp/*.json
 mcp/**/*.json

@@ -15,8 +15,34 @@ regex_patterns:
     replacement: "[REDACTED_AWS_SECRET]"
   - name: generic_api_key
     pattern: >-
-      (?i)(api[_-]?key|token|secret|password|passwd|pwd)\s*[:=]\s*["']?[^\s"']{8,}["']?
+      (?i)(?:(?:password|passwd|pwd)\s*[:=]\s*["']?[^\s"']{4,}["']?|(?:api[_-]?key|token|secret)\s*[:=]\s*["']?[^\s"']{8,}["']?)
     replacement: "[REDACTED_SECRET]"
+  - name: db_connection_string
+    pattern: >-
+      (?i)(postgresql|postgres|mysql|mongodb(?:\+srv)?|redis|amqp)://[^:@/\s]+:[^@/\s]+@
+    replacement: "\\1://[REDACTED_CREDS]@"
+  - name: url_embedded_credentials
+    pattern: >-
+      (?i)([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s:@]+@
+    replacement: "\\1[REDACTED_CREDENTIALS]@"
+  - name: github_token
+    pattern: "gh[pousr]_[A-Za-z0-9]{36,}"
+    replacement: "[REDACTED_GITHUB_TOKEN]"
+  - name: github_pat
+    pattern: "github_pat_[A-Za-z0-9_]{82}"
+    replacement: "[REDACTED_GITHUB_TOKEN]"
+  - name: gitlab_pat
+    pattern: "glpat-[A-Za-z0-9_-]{20,}"
+    replacement: "[REDACTED_GITLAB_TOKEN]"
+  - name: slack_token
+    pattern: "xox[baprs]-[A-Za-z0-9-]+"
+    replacement: "[REDACTED_SLACK_TOKEN]"
+  - name: slack_app_token
+    pattern: "xapp-[A-Za-z0-9-]+"
+    replacement: "[REDACTED_SLACK_TOKEN]"
+  - name: jwt
+    pattern: "eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+"
+    replacement: "[REDACTED_JWT]"
   - name: bearer_token
     pattern: "Bearer\\s+[A-Za-z0-9\\-._~+/]+=*"
     replacement: "Bearer [REDACTED_TOKEN]"

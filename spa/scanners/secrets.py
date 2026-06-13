@@ -16,7 +16,7 @@ def scan_secrets(repo_root: Path) -> list[RawFinding]:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
-        if "REDACTED" in text or "example" in str(rel).lower():
+        if "example" in str(rel).lower():
             continue
         for label, line_no in scan_text_for_secrets(text):
             findings.append(

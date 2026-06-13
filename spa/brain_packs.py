@@ -1,6 +1,7 @@
 """Installable versioned brain framework packs."""
 from __future__ import annotations
 
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,13 +14,29 @@ from spa.paths import BRAIN_DIR
 PACKS_SOURCE_DIR = BRAIN_DIR / "packs"
 STANDARDS_DIR = BRAIN_DIR / "04-standards"
 
+_PACK_NAME_RE = re.compile(r"^[a-z0-9._-]+$")
+
 
 class BrainPackError(Exception):
     pass
 
 
+def _validate_pack_name(pack_name: str) -> None:
+    if not _PACK_NAME_RE.fullmatch(pack_name):
+        raise BrainPackError(f"Invalid pack name: {pack_name!r}")
+
+
+def _assert_within(parent: Path, child: Path) -> None:
+    try:
+        child.resolve().relative_to(parent.resolve())
+    except ValueError as exc:
+        raise BrainPackError(f"Path escapes allowed directory: {child}") from exc
+
+
 def _pack_source(pack_name: str) -> Path:
+    _validate_pack_name(pack_name)
     path = PACKS_SOURCE_DIR / pack_name
+    _assert_within(PACKS_SOURCE_DIR, path)
     if not path.is_dir():
         raise BrainPackError(f"Unknown pack: {pack_name}")
     manifest = path / "pack.yaml"
@@ -29,7 +46,10 @@ def _pack_source(pack_name: str) -> Path:
 
 
 def _install_target(pack_name: str) -> Path:
-    return STANDARDS_DIR / pack_name
+    _validate_pack_name(pack_name)
+    target = STANDARDS_DIR / pack_name
+    _assert_within(STANDARDS_DIR, target)
+    return target
 
 
 def list_available_packs() -> list[str]:
@@ -86,6 +106,8 @@ def check_packs() -> dict[str, Any]:
 def install_pack(pack_name: str, *, reindex: bool = True) -> dict[str, Any]:
     source = _pack_source(pack_name)
     target = _install_target(pack_name)
+    _assert_within(PACKS_SOURCE_DIR, source)
+    _assert_within(STANDARDS_DIR, target)
     manifest = yaml.safe_load((source / "pack.yaml").read_text(encoding="utf-8")) or {}
 
     if target.exists():

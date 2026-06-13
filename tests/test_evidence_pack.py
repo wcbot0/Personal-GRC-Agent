@@ -151,6 +151,24 @@ def test_evidence_pack_unmapped_control_manual_only(monkeypatch, guard_setup):
     assert "no cloud checks mapped" in index_text
 
 
+def test_evidence_pack_default_period_uses_calendar_quarter(monkeypatch, guard_setup):
+    monkeypatch.setenv("CLOUD_PROVIDER", "none")
+    guard, _, out_dir = guard_setup
+
+    class FixedDatetime:
+        @classmethod
+        def now(cls, tz=None):
+            from datetime import datetime, timezone
+
+            return datetime(2026, 6, 13, tzinfo=timezone.utc)
+
+    monkeypatch.setattr("spa.skills.evidence_pack.datetime", FixedDatetime)
+
+    output = run("Control: CC6.1\n", context={"output_dir": out_dir, "guard": guard})
+
+    assert output["period"] == "2026-Q2"
+
+
 def test_evidence_pack_emits_audit_event_via_runner(monkeypatch, tmp_path):
     monkeypatch.setenv("CLOUD_PROVIDER", "none")
     audit_dir = tmp_path / "audit"

@@ -42,7 +42,9 @@
     "rejected_at": { "type": ["string", "null"], "format": "date-time" },
     "rejection_reason": { "type": ["string", "null"] },
     "run_id": { "type": "string" },
-    "created_audit_event_id": { "type": ["string", "null"] }
+    "created_audit_event_id": { "type": ["string", "null"] },
+    "approval_audit_event_id": { "type": ["string", "null"] },
+    "approval_signature": { "type": ["string", "null"] }
   },
   "additionalProperties": false
 }
