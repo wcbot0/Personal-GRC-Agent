@@ -5,6 +5,8 @@ import json
 import re
 from typing import Any
 
+import yaml
+
 from spa.llm.client import LLMClient, llm_enabled
 from spa.memory.semantic import SemanticMemory
 from spa.paths import SKILLS_DIR
@@ -23,9 +25,22 @@ def _brain_snippets(query: str, limit: int = 3) -> list[str]:
     return snippets
 
 
+def _parse_skill_md(text: str) -> tuple[dict[str, Any], str]:
+    """Return frontmatter dict and markdown body from SKILL.md."""
+    if not text.startswith("---"):
+        return {}, text
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {}, text
+    meta = yaml.safe_load(text[3:end]) or {}
+    body = text[end + 4 :].lstrip("\n")
+    return meta, body
+
+
 def _load_skill_contract(skill_name: str) -> tuple[str, dict[str, Any]]:
     skill_dir = SKILLS_DIR / skill_name
-    skill_md = (skill_dir / "skill.md").read_text(encoding="utf-8")
+    raw = (skill_dir / "SKILL.md").read_text(encoding="utf-8")
+    _, skill_md = _parse_skill_md(raw)
     schema = json.loads((skill_dir / "output.schema.json").read_text(encoding="utf-8"))
     return skill_md, schema
 

@@ -1,4 +1,7 @@
-# repo-security-review
+---
+name: repo-security-review
+description: Review open-source or local repos for OWASP/ASVS issues and dependency risks. Use when assessing a codebase path or Git URL.
+---
 
 **Risk class:** A1 (local draft)
 

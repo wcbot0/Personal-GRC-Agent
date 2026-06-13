@@ -65,7 +65,7 @@ reject: _ensure_python
 	"$(PYTHON)" -m spa.cli proposals reject "$(ID)" --reason "$(REASON)"
 
 eval: _ensure_python
-	SPA_DATA_DIR="$${SPA_DATA_DIR:-/tmp/spa_d}" SPA_AUDIT_DIR="$${SPA_AUDIT_DIR:-/tmp/spa_a}" "$(PYTHON)" evals/run_evals.py
+	SPA_NO_LLM=1 SPA_DATA_DIR="$${SPA_DATA_DIR:-/tmp/spa_d}" SPA_AUDIT_DIR="$${SPA_AUDIT_DIR:-/tmp/spa_a}" "$(PYTHON)" evals/run_evals.py
 
 redteam: _ensure_python
 	./scripts/redteam.sh
