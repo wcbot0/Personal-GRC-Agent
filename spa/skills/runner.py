@@ -31,6 +31,7 @@ SKILL_MODULES = {
     "evidence-pack": "spa.skills.evidence_pack",
     "risk-analyst": "spa.skills.risk_analyst",
     "repo-security-review": "spa.skills.repo_security_review",
+    "questionnaire": "spa.skills.questionnaire",
 }
 
 
