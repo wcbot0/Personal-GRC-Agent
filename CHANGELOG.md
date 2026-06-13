@@ -40,3 +40,18 @@ All notable changes to Personal GRC Agent (PGA) are documented here.
 
 - Hermes filesystem MCP demoted to `brain/` read-only only (inbox/drafts no longer mounted) — governed MCP is the preferred write path
 - LLM env supports both `LLM_BASE_URL` and existing `LLM_API_BASE` alias
+
+### Review fixes (pre-merge)
+
+- **Removed `pga-filesystem` mount** — `@modelcontextprotocol/server-filesystem` exposes write tools; setup script now registers `pga-governed` only and idempotently drops legacy `pga-filesystem` from `~/.hermes/config.yaml`
+- **CI deterministic mode** — `SPA_NO_LLM=1` pinned in skill-tests and redteam GitHub Actions jobs
+- **Ollama without API key** — `llm_enabled()` returns true for `LLM_PROVIDER=ollama` with no `LLM_API_KEY`; OpenAI/Anthropic still require a key
+- **Human-gate comment** — documented ToolGuard bypass in `_execute_human_gate` (CPO-to-approve-a-CPO circularity; `confirm=true` is client-asserted)
+
+| Suite | Result |
+|-------|--------|
+| `pytest tests/` | 148 passed |
+| `make eval` | 8/8 skills |
+| `make lint` | policy-lint + secret-scan OK |
+| `make redteam` | 30 cases OK |
+| `spa audit verify` | valid (250 events) |
