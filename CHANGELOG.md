@@ -40,3 +40,10 @@ All notable changes to Personal GRC Agent (PGA) are documented here.
 
 - Hermes filesystem MCP demoted to `brain/` read-only only (inbox/drafts no longer mounted) — governed MCP is the preferred write path
 - LLM env supports both `LLM_BASE_URL` and existing `LLM_API_BASE` alias
+
+### Review fixes (Phase 2 Milestone 2.0)
+
+- Removed writable `pga-filesystem` Hermes mount; governed MCP (`pga-governed`) is the only registered server
+- Pinned `SPA_NO_LLM=1` in CI workflow jobs running pytest, eval, and redteam
+- `LLM_PROVIDER=ollama` enables LLM without `LLM_API_KEY` (still disabled by `SPA_NO_LLM=1`)
+- Documented `_execute_human_gate` ToolGuard bypass rationale in `spa/mcp_server.py`

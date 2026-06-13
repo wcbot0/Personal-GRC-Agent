@@ -105,7 +105,7 @@ When `SPA_DATA_DIR` is set, proposals move to `{SPA_DATA_DIR}/proposals` instead
 | `get_audit_logs_dir()` | `governance/audit-logs/` |
 | `get_approval_queue_dir()` | `governance/approval-queue/` |
 
-> **Hermes MCP note:** `./scripts/setup-hermes.sh` mounts `brain/`, `inbox/`, and `workspace/drafts/` for chat file access. The `spa` skill runner writes skill JSON artifacts to `workspace/.data/drafts/` by default. Check both locations when looking for recent skill output, or pass `--output-dir workspace/drafts/<skill>` to align with the MCP mount.
+> **Hermes MCP note:** Use **`pga-governed`** for ingest, skills, and proposals. The `spa` skill runner writes skill JSON artifacts to `workspace/.data/drafts/` by default. Check both `workspace/.data/drafts/` and `workspace/drafts/` when looking for recent skill output, or pass `--output-dir workspace/drafts/<skill>`.
 
 ### Allowed write surfaces (draft-by-default)
 
@@ -428,9 +428,9 @@ make eval      # golden skill evals
 | `pga_audit_verify` | hash chain verify |
 | `pga_memory_search` | episodic FTS + semantic search |
 
-Wire Hermes: `./scripts/setup-hermes.sh` registers `pga-governed` and demotes raw filesystem to `brain/` read-only browse.
+Wire Hermes: `./scripts/setup-hermes.sh` registers `pga-governed` (ToolGuard + audit).
 
-- **Hermes:** Launch from repo root (`hermes chat`) so this file loads. Prefer **`pga-governed`** MCP for ingest/skills; raw filesystem is read-only `brain/` browse.
+- **Hermes:** Launch from repo root (`hermes chat`) so this file loads. Use **`pga-governed`** MCP for ingest, skills, and proposals.
 - **Cursor / Claude Code:** This `AGENTS.md` is the workspace rule source. Follow draft-by-default; use terminal `spa` commands for verifiable skill runs.
 - **Cursor rules:** File-scoped path guidance in `.cursor/rules/` — `pga-core.mdc` (always on), `pga-brain-paths.mdc`, `pga-workspace-paths.mdc`, `pga-inbox-paths.mdc`.
 - **Both:** Explore in chat → execute with `spa` → review artifacts → human approves CPOs for anything A3+.
