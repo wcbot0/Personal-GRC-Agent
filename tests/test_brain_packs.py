@@ -55,3 +55,16 @@ def test_check_reports_installed_version(pack_env):
 def test_unknown_pack_raises(pack_env):
     with pytest.raises(BrainPackError, match="Unknown pack"):
         install_pack("does-not-exist")
+
+
+def test_invalid_pack_name_rejected(pack_env):
+    with pytest.raises(BrainPackError, match="Invalid pack name"):
+        install_pack("../escape")
+
+
+def test_path_traversal_pack_name_rejected(pack_env, tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "marker.txt").write_text("gone", encoding="utf-8")
+    with pytest.raises(BrainPackError, match="Invalid pack name"):
+        install_pack("../../outside")

@@ -76,9 +76,10 @@ def test_resolve_repo_git_clone(tmp_path: Path):
     mock_repo = MagicMock()
     with patch("spa.scanners.repo.Repo.clone_from", mock_repo) as clone:
         with patch("spa.scanners.repo.get_data_dir", return_value=tmp_path):
-            dest = tmp_path / "org-demo"
-            dest.mkdir()
-            ctx = resolve_repo("https://github.com/org/demo-app", branch="main")
+            with patch("spa.scanners.repo.validate_git_url_host"):
+                dest = tmp_path / "org-demo"
+                dest.mkdir()
+                ctx = resolve_repo("https://github.com/org/demo-app", branch="main")
     clone.assert_called_once()
     assert ctx.is_temp is True
     assert ctx.branch == "main"

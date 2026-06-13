@@ -20,7 +20,6 @@ from spa.workflows.ticket_gating import propose_assign_human_cpos
 MEETING_SIGNALS = (
     "decisions",
     "action items",
-    "action item",
     "risks",
     "transcript",
     "meeting",
